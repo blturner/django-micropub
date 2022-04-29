@@ -1,3 +1,5 @@
+import json
+
 from urllib.parse import urlparse
 
 from django.http import (
@@ -10,6 +12,15 @@ from django.views import View
 from django.shortcuts import render
 from django.views import generic
 from django.urls import resolve
+
+
+KEY_MAPPING = [
+    ("title", "name"),
+    ("slug", "mp-slug"),
+    ("slug", "post-slug"),
+    ("status", "post-status"),
+    ("reply_to", "in-reply-to"),
+]
 
 
 class JSONResponseMixin:
@@ -157,33 +168,33 @@ class MicropubView(generic.FormView):
         form = self.form_class(request.POST or fields)
 
         if form.is_valid():
-            Post = form.save(commit=False)
+            instance = form.save(commit=False)
 
             for pair in KEY_MAPPING:
                 val = request.POST.get(pair[1])
                 if val:
-                    Post.__dict__[pair[0]] = val
+                    instance.__dict__[pair[0]] = val
 
-            if Post.title:
-                Post.post_type = "post"
+            if instance.title:
+                instance.post_type = "post"
 
             media_url = embed_file or self.request.POST.get("photo")
 
-            Post.save()
+            instance.save()
 
-            if media_url:
-                parsed = urlparse(media_url)
-                file_name = parsed.path.split("/")[-1]
-                media = Media.objects.get(file__contains=file_name)
+            # if media_url:
+            #     parsed = urlparse(media_url)
+            #     file_name = parsed.path.split("/")[-1]
+            #     media = Media.objects.get(file__contains=file_name)
 
-                Post.media.add(media)
+            #     Post.media.add(media)
 
             # make sure tags are saved
             form.save_m2m()
 
             resp = HttpResponse(status=201)
             resp["Location"] = request.build_absolute_uri(
-                Post.get_absolute_url()
+                instance.get_absolute_url()
             )
             return resp
         return HttpResponseBadRequest()
