@@ -47,6 +47,32 @@ class JSONResponseMixin:
         return context
 
 
+class JsonableResponseMixin:
+    """
+    Mixin to add JSON support to a form.
+    Must be used with an object-based FormView (e.g. CreateView)
+    """
+    def form_invalid(self, form):
+        response = super().form_invalid(form)
+        if self.request.accepts('text/html'):
+            return response
+        else:
+            return JsonResponse(form.errors, status=400)
+
+    def form_valid(self, form):
+        # We make sure to call the parent's form_valid() method because
+        # it might do some processing (in the case of CreateView, it will
+        # call form.save() for example).
+        response = super().form_valid(form)
+        if self.request.accepts('text/html'):
+            return response
+        else:
+            data = {
+                'pk': self.object.pk,
+            }
+            return JsonResponse(data)
+
+
 class SourceView(JSONResponseMixin, View):
     model = None
 
@@ -77,124 +103,146 @@ class SourceView(JSONResponseMixin, View):
         return self.render_to_json_response(context)
 
 
-class MicropubView(generic.FormView):
-    model = None
+class MicropubView(JsonableResponseMixin, generic.CreateView):
+    def form_valid(self, form):
+        self.object = form.save()
+        resp = HttpResponse(status=201)
+        resp["Location"] = self.request.build_absolute_uri(
+            self.object.get_absolute_url()
+        )
+        return resp
 
-    def get(self, request, *args, **kwargs):
-        query = self.request.GET.get("q")
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        if self.request.accepts('text/html'):
+            return kwargs
 
-        if not query:
-            return HttpResponseBadRequest()
+        data = json.loads(self.request.body)
+        kwargs.update({
+            'data': {k: v[0] for (k, v) in data.get('properties').items()}
+        })
+        return kwargs
 
-        if query == "config":
-            view = ConfigView.as_view()
 
-        if query == "source":
-            view = SourceView.as_view(model=self.model)
 
-        return view(request, *args, **kwargs)
+# class MicropubView(generic.FormView):
+#     model = None
 
-    def post(self, request, *args, **kwargs):
-        embed_file = None
-        embed_alt_text = None
+#     def get(self, request, *args, **kwargs):
+#         query = self.request.GET.get("q")
 
-        if request.content_type == "application/json":
-            data = json.loads(request.body)
-            action = data.get("action")
+#         if not query:
+#             return HttpResponseBadRequest()
 
-            if action == "update":
-                data.update(
-                    {
-                        "replace": json.dumps(data.get("replace", {})),
-                        "add": json.dumps(data.get("add", {})),
-                        "delete": json.dumps(data.get("delete", {})),
-                    }
-                )
+#         if query == "config":
+#             view = ConfigView.as_view()
 
-                post_data = request.POST.copy()
-                post_data.update(data)
-                request.POST = post_data
+#         if query == "source":
+#             view = SourceView.as_view(model=self.model)
 
-                return PostUpdateView.as_view()(request, *args, **kwargs)
+#         return view(request, *args, **kwargs)
 
-            if action == "delete" or action == "undelete":
-                post_data = request.POST.copy()
-                post_data.update(data)
-                request.POST = post_data
+#     def post(self, request, *args, **kwargs):
+#         embed_file = None
+#         embed_alt_text = None
 
-            fields = {}
-            keys = []
+#         if request.content_type == "application/json":
+#             data = json.loads(request.body)
+#             action = data.get("action")
 
-            if "properties" in data.keys():
-                keys = data["properties"].keys()
+#             if action == "update":
+#                 data.update(
+#                     {
+#                         "replace": json.dumps(data.get("replace", {})),
+#                         "add": json.dumps(data.get("add", {})),
+#                         "delete": json.dumps(data.get("delete", {})),
+#                     }
+#                 )
 
-            if "name" in keys:
-                fields["title"] = data["properties"]["name"][0]
+#                 post_data = request.POST.copy()
+#                 post_data.update(data)
+#                 request.POST = post_data
 
-            if "post-status" in keys:
-                fields["status"] = data["properties"]["post-status"][0]
+#                 return PostUpdateView.as_view()(request, *args, **kwargs)
 
-            if "mp-slug" in keys:
-                fields["slug"] = data["properties"]["mp-slug"][0]
+#             if action == "delete" or action == "undelete":
+#                 post_data = request.POST.copy()
+#                 post_data.update(data)
+#                 request.POST = post_data
 
-            if "content" in keys:
-                content = data["properties"]["content"][0]
+#             fields = {}
+#             keys = []
 
-                if type(content) == dict and content.get("html"):
-                    fields["content"] = content["html"]
-                else:
-                    fields["content"] = content
+#             if "properties" in data.keys():
+#                 keys = data["properties"].keys()
 
-            if "photo" in keys:
-                photo = data["properties"]["photo"][0]
+#             if "name" in keys:
+#                 fields["title"] = data["properties"]["name"][0]
 
-                if type(photo) == dict:
-                    embed_alt_text = photo.get("alt")
-                    embed_file = photo.get("value")
-                else:
-                    embed_file = photo
+#             if "post-status" in keys:
+#                 fields["status"] = data["properties"]["post-status"][0]
 
-            if "category" in keys:
-                fields["tags"] = " ".join(data["properties"]["category"])
+#             if "mp-slug" in keys:
+#                 fields["slug"] = data["properties"]["mp-slug"][0]
 
-            if "in-reply-to" in keys:
-                fields["reply_to"] = data["properties"]["in-reply-to"][0]
+#             if "content" in keys:
+#                 content = data["properties"]["content"][0]
 
-        action = request.POST.get("action")
+#                 if type(content) == dict and content.get("html"):
+#                     fields["content"] = content["html"]
+#                 else:
+#                     fields["content"] = content
 
-        if action == "delete" or action == "undelete":
-            return DeleteView.as_view()(request, *args, **kwargs)
+#             if "photo" in keys:
+#                 photo = data["properties"]["photo"][0]
 
-        form = self.form_class(request.POST or fields)
+#                 if type(photo) == dict:
+#                     embed_alt_text = photo.get("alt")
+#                     embed_file = photo.get("value")
+#                 else:
+#                     embed_file = photo
 
-        if form.is_valid():
-            instance = form.save(commit=False)
+#             if "category" in keys:
+#                 fields["tags"] = " ".join(data["properties"]["category"])
 
-            for pair in KEY_MAPPING:
-                val = request.POST.get(pair[1])
-                if val:
-                    instance.__dict__[pair[0]] = val
+#             if "in-reply-to" in keys:
+#                 fields["reply_to"] = data["properties"]["in-reply-to"][0]
 
-            if instance.title:
-                instance.post_type = "post"
+#         action = request.POST.get("action")
 
-            media_url = embed_file or self.request.POST.get("photo")
+#         if action == "delete" or action == "undelete":
+#             return DeleteView.as_view()(request, *args, **kwargs)
 
-            instance.save()
+#         form = self.form_class(request.POST or fields)
 
-            # if media_url:
-            #     parsed = urlparse(media_url)
-            #     file_name = parsed.path.split("/")[-1]
-            #     media = Media.objects.get(file__contains=file_name)
+#         if form.is_valid():
+#             instance = form.save(commit=False)
 
-            #     Post.media.add(media)
+#             for pair in KEY_MAPPING:
+#                 val = request.POST.get(pair[1])
+#                 if val:
+#                     instance.__dict__[pair[0]] = val
 
-            # make sure tags are saved
-            form.save_m2m()
+#             if instance.title:
+#                 instance.post_type = "post"
 
-            resp = HttpResponse(status=201)
-            resp["Location"] = request.build_absolute_uri(
-                instance.get_absolute_url()
-            )
-            return resp
-        return HttpResponseBadRequest()
+#             media_url = embed_file or self.request.POST.get("photo")
+
+#             instance.save()
+
+#             # if media_url:
+#             #     parsed = urlparse(media_url)
+#             #     file_name = parsed.path.split("/")[-1]
+#             #     media = Media.objects.get(file__contains=file_name)
+
+#             #     Post.media.add(media)
+
+#             # make sure tags are saved
+#             form.save_m2m()
+
+#             resp = HttpResponse(status=201)
+#             resp["Location"] = request.build_absolute_uri(
+#                 instance.get_absolute_url()
+#             )
+#             return resp
+#         return HttpResponseBadRequest()

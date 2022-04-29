@@ -1,6 +1,8 @@
 import httpretty
 import json
 
+from urllib.parse import urlparse
+
 from django.test import Client, TestCase
 from django.urls import reverse
 
@@ -25,12 +27,13 @@ class MicroPubTestCase(TestCase):
         resp = self.client.post(self.endpoint, {"content": "bananas"})
 
         self.assertEqual(resp.status_code, 201)
-        self.assertTrue(resp.has_header("Location"))
-        self.assertEqual(Post.objects.count(), 1)
 
-        entry = Post.objects.get(id=1)
+        post = Post.objects.get(content="bananas")
 
-        self.assertEqual(entry.content, "bananas")
+        self.assertEqual(
+            urlparse(resp.get('location')).path,
+            reverse('note-detail', kwargs={'pk': post.pk})
+        )
         # self.assertEqual(entry.status, "published")
         # self.assertEqual(entry.post_type, "note")
 
@@ -43,7 +46,8 @@ class MicroPubTestCase(TestCase):
         resp = self.client.post(
             self.endpoint,
             content_type="application/json",
-            data=json.dumps(data),
+            data=data,
+            HTTP_ACCEPT='application/json',
         )
 
         self.assertEqual(resp.status_code, 201)
