@@ -24,7 +24,10 @@ class MicroPubTestCase(TestCase):
         self.endpoint = reverse("micropub")
 
     def test_create_entry(self):
-        resp = self.client.post(self.endpoint, {"content": "bananas"})
+        resp = self.client.post(self.endpoint, {
+            "h": "entry",
+            "content": "bananas",
+        })
 
         self.assertEqual(resp.status_code, 201)
 
@@ -38,6 +41,7 @@ class MicroPubTestCase(TestCase):
         # self.assertEqual(entry.post_type, "note")
 
     def test_create_entry_json(self):
+        content_type = "application/json"
         data = {
             "type": ["h-entry"],
             "properties": {"content": ["hello world"]},
@@ -45,9 +49,9 @@ class MicroPubTestCase(TestCase):
 
         resp = self.client.post(
             self.endpoint,
-            content_type="application/json",
+            content_type=content_type,
             data=data,
-            HTTP_ACCEPT='application/json',
+            HTTP_ACCEPT=content_type,
         )
 
         self.assertEqual(resp.status_code, 201)
@@ -57,5 +61,46 @@ class MicroPubTestCase(TestCase):
         entry = Post.objects.get(id=1)
 
         self.assertEqual(entry.content, "hello world")
+        # self.assertEqual(entry.status, "published")
+        # self.assertEqual(entry.post_type, "note")
+
+    def test_create_post_with_tags(self):
+        data = {
+            "content": "a post with some tags",
+            "category": ("apple", "orange")
+        }
+        resp = self.client.post(self.endpoint, data)
+
+        self.assertEqual(resp.status_code, 201)
+
+        post = Post.objects.get(id=1)
+
+        self.assertEqual(post.tags, "['apple', 'orange']")
+
+    def test_create_post_with_tags_json(self):
+        content_type = "application/json"
+        data = {
+            "type": ["h-entry"],
+            "properties": {
+                "content": ["hello world"],
+                "category": ["apple", "orange"],
+            },
+        }
+
+        resp = self.client.post(
+            self.endpoint,
+            content_type=content_type,
+            data=data,
+            HTTP_ACCEPT=content_type,
+        )
+
+        self.assertEqual(resp.status_code, 201)
+        self.assertTrue(resp.has_header("Location"))
+        self.assertEqual(Post.objects.count(), 1)
+
+        post = Post.objects.get(id=1)
+
+        self.assertEqual(post.content, "hello world")
+        self.assertEqual(post.tags, "['apple', 'orange']")
         # self.assertEqual(entry.status, "published")
         # self.assertEqual(entry.post_type, "note")

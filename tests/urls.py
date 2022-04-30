@@ -9,6 +9,7 @@ from tests.models import Post
 
 class PostForm(forms.ModelForm):
     title = forms.CharField(required=False)
+    tags = forms.CharField(required=False)
 
     class Meta:
         model = Post
