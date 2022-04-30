@@ -104,3 +104,25 @@ class MicroPubTestCase(TestCase):
         self.assertEqual(post.tags, "['apple', 'orange']")
         # self.assertEqual(entry.status, "published")
         # self.assertEqual(entry.post_type, "note")
+
+    def test_update_post_action(self):
+        Post.objects.create(content='hello world')
+
+        content_type = "application/json"
+        data = {
+            'action': 'update',
+            'url': 'https://example.com/notes/1',
+            "replace": {
+                "content": ["hello moon"],
+            },
+        }
+
+        resp = self.client.post(
+            self.endpoint,
+            content_type=content_type,
+            data=data,
+            HTTP_ACCEPT=content_type,
+        )
+
+        post = Post.objects.get(id=1)
+        self.assertEqual(post.content, 'hello moon')
