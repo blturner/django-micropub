@@ -106,12 +106,12 @@ class MicroPubTestCase(TestCase):
         # self.assertEqual(entry.post_type, "note")
 
     def test_update_post_action(self):
-        Post.objects.create(content='hello world')
+        Post.objects.create(title='first post', content='hello world')
 
         content_type = "application/json"
         data = {
             'action': 'update',
-            'url': 'https://example.com/notes/1',
+            'url': 'http://example.com/notes/1/',
             "replace": {
                 "content": ["hello moon"],
             },
@@ -124,5 +124,9 @@ class MicroPubTestCase(TestCase):
             HTTP_ACCEPT=content_type,
         )
 
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.has_header('Location'))
+
         post = Post.objects.get(id=1)
+        self.assertEqual(post.title, 'first post')
         self.assertEqual(post.content, 'hello moon')

@@ -11,7 +11,9 @@ from django.http import (
 from django.views import View
 from django.shortcuts import render
 from django.views import generic
+from django.views.decorators.csrf import csrf_exempt
 from django.urls import resolve
+from django.utils.decorators import method_decorator
 
 
 KEY_MAPPING = [
@@ -103,19 +105,48 @@ class SourceView(JSONResponseMixin, View):
         return self.render_to_json_response(context)
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class MicropubView(JsonableResponseMixin, generic.CreateView):
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        form = self.get_form()
+        if form.is_valid():
+            return self.form_valid(form)
+        else:
+            return self.form_invalid(form)
+
+    def get_object(self, queryset=None):
+        obj = None
+        try:
+            data = json.loads(self.request.body)
+        except json.decoder.JSONDecodeError:
+            return obj
+        if 'url' in data.keys():
+            url = data.get('url')
+            obj = self.model.from_url(url)
+        return obj
+
     def form_valid(self, form):
-        self.object = form.save()
-        resp = HttpResponse(status=201)
-        resp["Location"] = self.request.build_absolute_uri(
-            self.object.get_absolute_url()
-        )
+        status_code = 200
+        if self.object:
+            self.object = form.save(commit=False)
+            self.object.save(update_fields=form.data.keys())
+            self.object = self.model.objects.get(pk=self.object.pk)
+        else:
+            self.object = form.save()
+            status_code = 201
+        resp = HttpResponse(status=status_code)
+
+        if status_code == 201:
+            resp["Location"] = self.request.build_absolute_uri(
+                self.object.get_absolute_url()
+            )
         return resp
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
 
-        if 'category' in kwargs.get('data').keys():
+        if 'category' in kwargs.get('data', {}).keys():
             data = {}
             data.update(kwargs.get('data'))
             data['tags'] = data.pop('category')
@@ -126,8 +157,23 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
 
         data = json.loads(self.request.body)
 
-        if 'action' in data.get('properties', {}).keys():
-            action = data.get('properties').get('action')
+        if 'action' in data.keys():
+            action = data.get('action')
+
+            if action == "update":
+                data.update(
+                    {
+                        "replace": json.dumps(data.get("replace", {})),
+                        "add": json.dumps(data.get("add", {})),
+                        "delete": json.dumps(data.get("delete", {})),
+                    }
+                )
+
+                replace_data = json.loads(data.get('replace'))
+                kwargs.update({
+                    'data': {k: v[0] if len(v) == 1 else v for (k, v) in replace_data.items()}
+                })
+                return kwargs
 
         if 'category' in data.get('properties', {}).keys():
             properties = data.get('properties')
@@ -137,7 +183,6 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
             'data': {k: v[0] if len(v) == 1 else v for (k, v) in data.get('properties', {}).items()}
         })
         return kwargs
-
 
 
 # class MicropubView(generic.FormView):
