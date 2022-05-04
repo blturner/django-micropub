@@ -1,9 +1,13 @@
 import json
+import requests
 
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs, urlencode
 
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.utils.crypto import get_random_string
 from django.http import (
     HttpResponse,
+    HttpResponseRedirect,
     HttpResponseBadRequest,
     JsonResponse,
     Http404,
@@ -12,8 +16,11 @@ from django.views import View
 from django.shortcuts import render
 from django.views import generic
 from django.views.decorators.csrf import csrf_exempt
-from django.urls import resolve
+from django.urls import resolve, reverse
 from django.utils.decorators import method_decorator
+
+from .forms import LoginForm
+from .models import IndieAuth
 
 
 KEY_MAPPING = [
@@ -29,14 +36,12 @@ class JSONResponseMixin:
     """
     A mixin that can be used to render a JSON response.
     """
+
     def render_to_json_response(self, context, **response_kwargs):
         """
         Returns a JSON response, transforming 'context' to make the payload.
         """
-        return JsonResponse(
-            self.get_data(context),
-            **response_kwargs
-        )
+        return JsonResponse(self.get_data(context), **response_kwargs)
 
     def get_data(self, context):
         """
@@ -54,9 +59,10 @@ class JsonableResponseMixin:
     Mixin to add JSON support to a form.
     Must be used with an object-based FormView (e.g. CreateView)
     """
+
     def form_invalid(self, form):
         response = super().form_invalid(form)
-        if self.request.accepts('text/html'):
+        if self.request.accepts("text/html"):
             return response
         else:
             return JsonResponse(form.errors, status=400)
@@ -66,13 +72,110 @@ class JsonableResponseMixin:
         # it might do some processing (in the case of CreateView, it will
         # call form.save() for example).
         response = super().form_valid(form)
-        if self.request.accepts('text/html'):
+        if self.request.accepts("text/html"):
             return response
         else:
             data = {
-                'pk': self.object.pk,
+                "pk": self.object.pk,
             }
             return JsonResponse(data)
+
+
+class IndieAuthMixin(object):
+    def dispatch(self, request, *args, **kwargs):
+        authorization = request.META.get("HTTP_AUTHORIZATION")
+
+        if not authorization:
+            # try:
+            #     indieauth = request.user.social_auth.get(provider="indieauth")
+            #     authorization = "Authorization: {} {}".format(
+            #         indieauth.extra_data.get("token_type"),
+            #         indieauth.extra_data.get("access_token"),
+            #     )
+            # except UserSocialAuth.DoesNotExist:
+            return HttpResponse(status=401)
+
+        resp = requests.get(
+            "https://tokens.indieauth.com/token",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": authorization,
+            },
+        )
+        content = parse_qs(resp.content.decode("utf-8"))
+
+        if content.get("error"):
+            return HttpResponse(content.get("error_description"), status=401)
+
+        return super().dispatch(request, *args, **kwargs)
+
+
+def start_auth(request):
+    initial = {
+        "client_id": "http://localhost:8000",
+        "redirect_uri": request.build_absolute_uri(reverse("micropub-login")),
+        "state": get_random_string(10),
+        "user": request.user.id,
+        "url": "http://localhost:8000",
+    }
+    instance, _ = IndieAuth.objects.get_or_create(user=request.user)
+    form = LoginForm(request.POST or None, initial=initial, instance=instance)
+    context = {"form": form}
+
+    if form.is_valid():
+        form.save()
+        qs = urlencode(
+            {
+                "client_id": request.POST.get("client_id"),
+                "redirect_uri": request.POST.get("redirect_uri"),
+                "state": request.POST.get("state"),
+            }
+        )
+        url = f"https://indielogin.com/auth?{qs}"
+        return HttpResponseRedirect(url)
+
+    return render(request, "micropub/indieauth_form.html", context)
+
+
+class IndieLogin(LoginRequiredMixin, generic.CreateView):
+    client_id = None
+    model = IndieAuth
+    form_class = LoginForm
+
+    def get_initial(self):
+        initial = super().get_initial()
+        initial.update(
+            {
+                "client_id": self.client_id,
+                "redirect_uri": self.request.build_absolute_uri(
+                    reverse("micropub-login")
+                ),
+                "state": get_random_string(10),
+                "user": self.request.user.id,
+            }
+        )
+        return initial
+
+    def get_success_url(self):
+        qs = urlencode(
+            {
+                "client_id": self.request.POST.get("client_id"),
+                "redirect_uri": self.request.POST.get("redirect_uri"),
+                "state": self.request.POST.get("state"),
+            }
+        )
+        url = f"https://indielogin.com/auth?{qs}"
+        return url
+
+
+class VerifyLogin(LoginRequiredMixin, generic.View):
+    def get(self, request, *args, **kwargs):
+        indie_auth = IndieAuth.objects.get(user__id=request.user.id)
+        if indie_auth.state == request.GET.get("state"):
+            indie_auth.code = request.GET.get("code")
+            indie_auth.save()
+            return HttpResponse("success")
+        return HttpResponseBadRequest()
 
 
 class SourceView(JSONResponseMixin, View):
@@ -105,8 +208,8 @@ class SourceView(JSONResponseMixin, View):
         return self.render_to_json_response(context)
 
 
-@method_decorator(csrf_exempt, name='dispatch')
-class MicropubView(JsonableResponseMixin, generic.CreateView):
+@method_decorator(csrf_exempt, name="dispatch")
+class MicropubView(JsonableResponseMixin, IndieAuthMixin, generic.CreateView):
     def post(self, request, *args, **kwargs):
         self.object = self.get_object()
         form = self.get_form()
@@ -121,8 +224,8 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
             data = json.loads(self.request.body)
         except json.decoder.JSONDecodeError:
             return obj
-        if 'url' in data.keys():
-            url = data.get('url')
+        if "url" in data.keys():
+            url = data.get("url")
             obj = self.model.from_url(url)
         return obj
 
@@ -146,19 +249,19 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
 
-        if 'category' in kwargs.get('data', {}).keys():
+        if "category" in kwargs.get("data", {}).keys():
             data = {}
-            data.update(kwargs.get('data'))
-            data['tags'] = data.pop('category')
-            kwargs.update({'data': data})
+            data.update(kwargs.get("data"))
+            data["tags"] = data.pop("category")
+            kwargs.update({"data": data})
 
-        if self.request.accepts('text/html'):
+        if self.request.accepts("text/html"):
             return kwargs
 
         data = json.loads(self.request.body)
 
-        if 'action' in data.keys():
-            action = data.get('action')
+        if "action" in data.keys():
+            action = data.get("action")
 
             if action == "update":
                 data.update(
@@ -169,19 +272,29 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
                     }
                 )
 
-                replace_data = json.loads(data.get('replace'))
-                kwargs.update({
-                    'data': {k: v[0] if len(v) == 1 else v for (k, v) in replace_data.items()}
-                })
+                replace_data = json.loads(data.get("replace"))
+                kwargs.update(
+                    {
+                        "data": {
+                            k: v[0] if len(v) == 1 else v
+                            for (k, v) in replace_data.items()
+                        }
+                    }
+                )
                 return kwargs
 
-        if 'category' in data.get('properties', {}).keys():
-            properties = data.get('properties')
-            properties['tags'] = properties.pop('category')
+        if "category" in data.get("properties", {}).keys():
+            properties = data.get("properties")
+            properties["tags"] = properties.pop("category")
 
-        kwargs.update({
-            'data': {k: v[0] if len(v) == 1 else v for (k, v) in data.get('properties', {}).items()}
-        })
+        kwargs.update(
+            {
+                "data": {
+                    k: v[0] if len(v) == 1 else v
+                    for (k, v) in data.get("properties", {}).items()
+                }
+            }
+        )
         return kwargs
 
 
