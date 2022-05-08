@@ -131,7 +131,7 @@ def start_auth(request):
                 "state": request.POST.get("state"),
             }
         )
-        url = f"https://indielogin.com/auth?{qs}"
+        url = f"https://indieauth.com/auth?{qs}"
         return HttpResponseRedirect(url)
 
     return render(request, "micropub/indieauth_form.html", context)
