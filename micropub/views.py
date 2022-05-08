@@ -111,12 +111,13 @@ class IndieAuthMixin(object):
 
 
 def start_auth(request):
+    client_id = request.get_host()
     initial = {
-        "client_id": "http://localhost:8000",
-        "redirect_uri": request.build_absolute_uri(reverse("micropub-login")),
+        "client_id": client_id,
+        "redirect_uri": request.build_absolute_uri(reverse("micropub-verify")),
         "state": get_random_string(10),
         "user": request.user.id,
-        "url": "http://localhost:8000",
+        "url": client_id,
     }
     instance, _ = IndieAuth.objects.get_or_create(user=request.user)
     form = LoginForm(request.POST or None, initial=initial, instance=instance)

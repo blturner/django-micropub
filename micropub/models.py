@@ -13,5 +13,5 @@ class MicropubModel(models.Model):
 
 class IndieAuth(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    code = models.CharField(blank=True, max_length=255)
+    code = models.TextField(blank=True)
     state = models.CharField(blank=True, max_length=10)
