@@ -126,6 +126,7 @@ def start_auth(request):
         form.save()
         qs = urlencode(
             {
+                "me": request.POST.get("url"),
                 "client_id": request.POST.get("client_id"),
                 "redirect_uri": request.POST.get("redirect_uri"),
                 "state": request.POST.get("state"),
