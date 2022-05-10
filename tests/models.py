@@ -12,10 +12,25 @@ class Post(MicropubModel, models.Model):
     tags = models.CharField(max_length=255)
 
     def get_absolute_url(self):
-        return reverse('note-detail', kwargs={'pk': self.pk})
+        return reverse("note-detail", kwargs={"pk": self.pk})
 
     @staticmethod
     def from_url(url):
         view, args, kwargs = resolve(urlparse(url).path)
-        post = Post.objects.get(pk=kwargs.get('pk'))
+        post = Post.objects.get(pk=kwargs.get("pk"))
+        return post
+
+
+class AdvancedPost(MicropubModel, models.Model):
+    title = models.CharField(max_length=100)
+    slug = models.SlugField()
+    content = models.TextField()
+
+    def get_absolute_url(self):
+        return reverse("advanced-note-detail", kwargs={"slug": self.slug})
+
+    @staticmethod
+    def from_url(url):
+        view, args, kwargs = resolve(urlparse(url).path)
+        post = AdvancedPost.objects.get(slug=kwargs.get("slug"))
         return post

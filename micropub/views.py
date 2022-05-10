@@ -222,13 +222,15 @@ class MicropubView(JsonableResponseMixin, IndieAuthMixin, generic.CreateView):
 
     def get_object(self, queryset=None):
         obj = None
+
         try:
             data = json.loads(self.request.body)
+            if "url" in data.keys():
+                url = data.get("url")
+                obj = self.model.from_url(url)
         except json.decoder.JSONDecodeError:
             return obj
-        if "url" in data.keys():
-            url = data.get("url")
-            obj = self.model.from_url(url)
+
         return obj
 
     def form_valid(self, form):
@@ -260,7 +262,10 @@ class MicropubView(JsonableResponseMixin, IndieAuthMixin, generic.CreateView):
         if self.request.accepts("text/html"):
             return kwargs
 
-        data = json.loads(self.request.body)
+        try:
+            data = json.loads(self.request.body)
+        except json.decoder.JSONDecodeError:
+            data = {}
 
         if "action" in data.keys():
             action = data.get("action")
@@ -289,14 +294,15 @@ class MicropubView(JsonableResponseMixin, IndieAuthMixin, generic.CreateView):
             properties = data.get("properties")
             properties["tags"] = properties.pop("category")
 
-        kwargs.update(
-            {
-                "data": {
-                    k: v[0] if len(v) == 1 else v
-                    for (k, v) in data.get("properties", {}).items()
+        if "properties" in data.keys():
+            kwargs.update(
+                {
+                    "data": {
+                        k: v[0] if len(v) == 1 else v
+                        for (k, v) in data.get("properties", {}).items()
+                    }
                 }
-            }
-        )
+            )
         return kwargs
 
 

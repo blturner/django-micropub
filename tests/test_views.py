@@ -9,7 +9,7 @@ from django.urls import reverse
 
 from micropub.models import IndieAuth
 
-from tests.models import Post
+from tests.models import Post, AdvancedPost
 
 
 class IndieLoginTestCase(TestCase):
@@ -71,6 +71,7 @@ class MicroPubTestCase(TestCase):
 
         self.client = Client(SERVER_NAME="example.com", **headers)
         self.endpoint = reverse("micropub")
+        self.advanced = reverse("advanced-micropub")
 
     def test_create_entry(self):
         resp = self.client.post(
@@ -91,6 +92,36 @@ class MicroPubTestCase(TestCase):
         )
         # self.assertEqual(entry.status, "published")
         # self.assertEqual(entry.post_type, "note")
+
+    def test_create_advanced_post(self):
+        resp = self.client.post(
+            self.advanced,
+            {
+                "h": "entry",
+                "title": "hello world",
+                "content": "post body",
+                "slug": "hello-world",
+            },
+        )
+
+        self.assertEqual(resp.status_code, 201)
+
+        post = AdvancedPost.objects.get(title="hello world")
+
+        self.assertEqual(
+            urlparse(resp.get("location")).path,
+            reverse("advanced-note-detail", kwargs={"slug": "hello-world"}),
+        )
+
+    def test_create_post_json(self):
+        content_type = "application/json"
+        data = {"h": "entry", "content": "hello world"}
+        resp = self.client.post(
+            self.endpoint,
+            data=data,
+            HTTP_ACCEPT=content_type,
+        )
+        self.assertEqual(resp.status_code, 201)
 
     def test_create_entry_json(self):
         content_type = "application/json"
