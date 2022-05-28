@@ -2,7 +2,7 @@ from django import forms
 from django.views import generic
 from django.urls import path
 
-from micropub.views import MicropubView, IndieLogin, VerifyLogin, start_auth
+from micropub.views import MicropubView
 
 from tests.models import AdvancedPost, Post
 
@@ -39,6 +39,4 @@ urlpatterns = [
         MicropubView.as_view(model=AdvancedPost, form_class=AdvancedPostForm),
         name="advanced-micropub",
     ),
-    path("micropub/login/", start_auth, name="micropub-login"),
-    path("micropub/login/verify/", VerifyLogin.as_view(), name="micropub-verify"),
 ]

@@ -1,61 +1,11 @@
 import httpretty
-import json
 
-from urllib.parse import urlparse, urlencode
+from urllib.parse import urlparse
 
-from django.contrib.auth.models import User
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from micropub.models import IndieAuth
-
 from tests.models import Post, AdvancedPost
-
-
-class IndieLoginTestCase(TestCase):
-    def setUp(self):
-        self.client.force_login(user=self.user)
-
-    @classmethod
-    def setUpTestData(cls):
-        cls.user = User.objects.create(username="fred", password="secret")
-
-    def test_create_login(self):
-        resp = self.client.post(
-            reverse("micropub-login"),
-            {
-                "url": "https://example.com",
-                "client_id": "https://example.com",
-                "redirect_uri": "https://example.com/callback",
-                "state": "123",
-                "user": self.user.id,
-            },
-        )
-        qs = urlencode(
-            {
-                "client_id": "https://example.com",
-                "redirect_uri": "https://example.com/callback",
-                "state": "123",
-            }
-        )
-        redirect_url = f"https://indielogin.com/auth?{qs}"
-        indie_auth = IndieAuth.objects.get(user__id=self.user.id)
-
-        self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp.url, redirect_url)
-        self.assertEqual(indie_auth.state, "123")
-
-    def test_callback_code(self):
-        IndieAuth.objects.create(user=self.user, state="123")
-        resp = self.client.get(
-            reverse("micropub-verify"),
-            {"state": "123", "code": "456"},
-        )
-        indie_auth = IndieAuth.objects.get(user__id=self.user.id)
-
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(indie_auth.state, "123")
-        self.assertEqual(indie_auth.code, "456")
 
 
 @httpretty.activate
