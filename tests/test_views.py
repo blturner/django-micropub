@@ -34,7 +34,7 @@ class MicroPubAuthorizationTestCase(TestCase):
         self.assertEqual(resp.status_code, 201)
 
     @httpretty.activate
-    def test_form_encoded_auth_token_unauthorized(self):
+    def test_form_encoded_auth_token_forbidden(self):
         httpretty.register_uri(
             httpretty.GET,
             "https://tokens.indieauth.com/token",
@@ -47,7 +47,7 @@ class MicroPubAuthorizationTestCase(TestCase):
         }
         resp = self.client.post(self.endpoint, data)
 
-        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.status_code, 403)
 
 
 @httpretty.activate

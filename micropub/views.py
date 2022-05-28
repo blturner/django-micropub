@@ -6,6 +6,7 @@ from urllib.parse import parse_qs
 from django.http import (
     HttpResponse,
     HttpResponseBadRequest,
+    HttpResponseForbidden,
     JsonResponse,
 )
 from django.views import View
@@ -143,7 +144,7 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
         )
         content = parse_qs(resp.content.decode("utf-8"))
         if content.get("error"):
-            return HttpResponse(content.get("error_description"), status=401)
+            return HttpResponseForbidden(content.get("error_description"))
 
         status_code = 200
         if self.object:
