@@ -72,28 +72,6 @@ class JsonableResponseMixin:
             return JsonResponse(data)
 
 
-class IndieAuthMixin(object):
-    def dispatch(self, request, *args, **kwargs):
-        authorization = request.META.get("HTTP_AUTHORIZATION")
-
-        if not authorization:
-            return HttpResponse(status=401)
-
-        resp = requests.get(
-            "https://tokens.indieauth.com/token",
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": authorization,
-            },
-        )
-        content = parse_qs(resp.content.decode("utf-8"))
-
-        if content.get("error"):
-            return HttpResponse(content.get("error_description"), status=401)
-
-        return super().dispatch(request, *args, **kwargs)
-
-
 class SourceView(JSONResponseMixin, View):
     model = None
 
@@ -125,7 +103,7 @@ class SourceView(JSONResponseMixin, View):
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-class MicropubView(JsonableResponseMixin, IndieAuthMixin, generic.CreateView):
+class MicropubView(JsonableResponseMixin, generic.CreateView):
     def post(self, request, *args, **kwargs):
         self.object = self.get_object()
         form = self.get_form()
@@ -148,6 +126,25 @@ class MicropubView(JsonableResponseMixin, IndieAuthMixin, generic.CreateView):
         return obj
 
     def form_valid(self, form):
+        authorization = self.request.META.get("HTTP_AUTHORIZATION")
+
+        if not authorization:
+            try:
+                authorization = form.data['auth_token']
+            except KeyError:
+                return HttpResponse("Unauthorized", status=401)
+
+        resp = requests.get(
+            "https://tokens.indieauth.com/token",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": authorization,
+            },
+        )
+        content = parse_qs(resp.content.decode("utf-8"))
+        if content.get("error"):
+            return HttpResponse(content.get("error_description"), status=401)
+
         status_code = 200
         if self.object:
             self.object = form.save(commit=False)

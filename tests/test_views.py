@@ -8,6 +8,48 @@ from django.urls import reverse
 from tests.models import Post, AdvancedPost
 
 
+class MicroPubAuthorizationTestCase(TestCase):
+    def setUp(self):
+        self.endpoint = reverse("micropub")
+
+    def test_unauthorized(self):
+        resp = self.client.post(self.endpoint, {"h": "entry", "content": "bananas"})
+
+        self.assertEqual(resp.status_code, 401)
+
+    @httpretty.activate
+    def test_form_encoded_auth_token(self):
+        httpretty.register_uri(
+            httpretty.GET,
+            "https://tokens.indieauth.com/token",
+            body=b"me=https%3A%2F%2Fbenjaminturner.me%2F&issued_by=https%3A%2F%2Ftokens.indieauth.com%2Ftoken&client_id=https%3A%2F%2Fbenjaminturner.me&issued_at=1552542719&scope=&nonce=203045553",
+        )
+        data = {
+            "h": "entry",
+            "content": "form encoded",
+            "auth_token": "123",
+        }
+        resp = self.client.post(self.endpoint, data)
+
+        self.assertEqual(resp.status_code, 201)
+
+    @httpretty.activate
+    def test_form_encoded_auth_token_unauthorized(self):
+        httpretty.register_uri(
+            httpretty.GET,
+            "https://tokens.indieauth.com/token",
+            body=b"error=unauthorized",
+        )
+        data = {
+            "h": "entry",
+            "content": "form encoded",
+            "auth_token": "123",
+        }
+        resp = self.client.post(self.endpoint, data)
+
+        self.assertEqual(resp.status_code, 401)
+
+
 @httpretty.activate
 class MicroPubTestCase(TestCase):
     def setUp(self):
