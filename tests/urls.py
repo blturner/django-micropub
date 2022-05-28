@@ -24,11 +24,15 @@ class AdvancedPostForm(forms.ModelForm):
 
 urlpatterns = [
     path(
+        "notes/<int:pk>/",
+        generic.DetailView.as_view(model=Post),
+        name="note-detail"
+    ),
+    path(
         "notes/<slug:slug>/",
         generic.DetailView.as_view(model=AdvancedPost),
         name="advanced-note-detail",
     ),
-    path("notes/<int:pk>/", generic.DetailView.as_view(model=Post), name="note-detail"),
     path(
         "micropub/",
         MicropubView.as_view(model=Post, form_class=PostForm),
