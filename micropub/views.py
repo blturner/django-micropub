@@ -73,7 +73,41 @@ class JsonableResponseMixin:
             return JsonResponse(data)
 
 
-class SourceView(JSONResponseMixin, View):
+class IndieAuthMixin(object):
+    def dispatch(self, request, *args, **kwargs):
+        authorization = request.META.get("HTTP_AUTHORIZATION")
+        if not authorization:
+            return HttpResponse("Unauthorized", status=401)
+
+        resp = requests.get(
+            "https://tokens.indieauth.com/token",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": authorization,
+            },
+        )
+        content = parse_qs(resp.content.decode("utf-8"))
+        if content.get("error"):
+            return HttpResponseForbidden(content.get("error_description"))
+
+        request.session["scope"] = content.get("scope", [])
+
+        return super().dispatch(request, *args, **kwargs)
+
+
+class ConfigView(IndieAuthMixin, JSONResponseMixin, View):
+    def get(self, request):
+        syndicate_to = []
+        context = {
+            # "media-endpoint": self.request.build_absolute_uri(
+            #     reverse("micropub-media-endpoint")
+            # )
+            "syndicate-to": syndicate_to
+        }
+        return self.render_to_json_response(context)
+
+
+class SourceView(IndieAuthMixin, JSONResponseMixin, View):
     model = None
 
     def get(self, request, **kwargs):
@@ -105,7 +139,24 @@ class SourceView(JSONResponseMixin, View):
 
 @method_decorator(csrf_exempt, name="dispatch")
 class MicropubView(JsonableResponseMixin, generic.CreateView):
+    def get(self, request, *args, **kwargs):
+        query = self.request.GET.get("q")
+
+        if not query:
+            return HttpResponseBadRequest()
+
+        if query == "config":
+            view = ConfigView.as_view()
+
+        if query == "source":
+            view = SourceView.as_view()
+
+        return view(request, *args, **kwargs)
+
     def post(self, request, *args, **kwargs):
+        if "create" not in request.session.get("scope", []):
+            return HttpResponseBadRequest()
+
         self.object = self.get_object()
         form = self.get_form()
         if form.is_valid():

@@ -1,4 +1,5 @@
 import httpretty
+import json
 
 from urllib.parse import urlparse
 
@@ -8,11 +9,21 @@ from django.urls import reverse
 from tests.models import Post, AdvancedPost
 
 
-class MicroPubAuthorizationTestCase(TestCase):
+class MicroPubUnauthorizedTestCase(TestCase):
     def setUp(self):
         self.endpoint = reverse("micropub")
 
-    def test_unauthorized(self):
+    def test_unauthorized_config(self):
+        resp = self.client.get(self.endpoint, {"q": "config"})
+
+        self.assertEqual(resp.status_code, 401)
+
+    def test_unauthorized_source(self):
+        resp = self.client.get(self.endpoint, {"q": "source"})
+
+        self.assertEqual(resp.status_code, 401)
+
+    def test_unauthorized_post(self):
         resp = self.client.post(self.endpoint, {"h": "entry", "content": "bananas"})
 
         self.assertEqual(resp.status_code, 401)
@@ -51,12 +62,12 @@ class MicroPubAuthorizationTestCase(TestCase):
 
 
 @httpretty.activate
-class MicroPubTestCase(TestCase):
+class MicroPubAuthorizedTestCase(TestCase):
     def setUp(self):
         httpretty.register_uri(
             httpretty.GET,
             "https://tokens.indieauth.com/token",
-            body=b"me=https%3A%2F%2Fbenjaminturner.me%2F&issued_by=https%3A%2F%2Ftokens.indieauth.com%2Ftoken&client_id=https%3A%2F%2Fbenjaminturner.me&issued_at=1552542719&scope=&nonce=203045553",
+            body=b"me=https%3A%2F%2Fbenjaminturner.me%2F&issued_by=https%3A%2F%2Ftokens.indieauth.com%2Ftoken&client_id=https%3A%2F%2Fbenjaminturner.me&issued_at=1552542719&scope=create&nonce=203045553",
         )
 
         headers = {"HTTP_AUTHORIZATION": "Bearer 123"}
@@ -64,6 +75,19 @@ class MicroPubTestCase(TestCase):
         self.client = Client(SERVER_NAME="example.com", **headers)
         self.endpoint = reverse("micropub")
         self.advanced = reverse("advanced-micropub")
+
+    def test_config_view(self):
+        resp = self.client.get(self.endpoint, {"q": "config"})
+
+        expected = {"syndicate-to": []}
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(json.loads(resp.content), expected)
+
+    def test_source_view_no_url(self):
+        resp = self.client.get(self.endpoint, {"q": "source"})
+
+        self.assertEqual(resp.status_code, 400)
 
     def test_create_entry(self):
         resp = self.client.post(
