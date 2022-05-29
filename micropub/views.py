@@ -91,6 +91,7 @@ class IndieAuthMixin(object):
             return HttpResponseForbidden(content.get("error_description"))
 
         request.session["scope"] = content.get("scope", [])
+        # print(request.session.get("scope"))
 
         return super().dispatch(request, *args, **kwargs)
 
@@ -154,9 +155,6 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
         return view(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
-        if "create" not in request.session.get("scope", []):
-            return HttpResponseBadRequest()
-
         self.object = self.get_object()
         form = self.get_form()
         if form.is_valid():
@@ -196,6 +194,9 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
         content = parse_qs(resp.content.decode("utf-8"))
         if content.get("error"):
             return HttpResponseForbidden(content.get("error_description"))
+
+        if "create" not in content.get("scope", []):
+            return HttpResponseBadRequest()
 
         status_code = 200
         if self.object:

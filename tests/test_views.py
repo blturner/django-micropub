@@ -33,7 +33,7 @@ class MicroPubUnauthorizedTestCase(TestCase):
         httpretty.register_uri(
             httpretty.GET,
             "https://tokens.indieauth.com/token",
-            body=b"me=https%3A%2F%2Fbenjaminturner.me%2F&issued_by=https%3A%2F%2Ftokens.indieauth.com%2Ftoken&client_id=https%3A%2F%2Fbenjaminturner.me&issued_at=1552542719&scope=&nonce=203045553",
+            body=b"me=https%3A%2F%2Fbenjaminturner.me%2F&issued_by=https%3A%2F%2Ftokens.indieauth.com%2Ftoken&client_id=https%3A%2F%2Fbenjaminturner.me&issued_at=1552542719&scope=create&nonce=203045553",
         )
         data = {
             "h": "entry",
