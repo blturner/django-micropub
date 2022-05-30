@@ -89,7 +89,7 @@ class MicroPubAuthorizedTestCase(TestCase):
         httpretty.register_uri(
             httpretty.GET,
             "https://tokens.indieauth.com/token",
-            body=b"me=https%3A%2F%2Fbenjaminturner.me%2F&issued_by=https%3A%2F%2Ftokens.indieauth.com%2Ftoken&client_id=https%3A%2F%2Fbenjaminturner.me&issued_at=1552542719&scope=create&nonce=203045553",
+            body=b"me=https%3A%2F%2Fbenjaminturner.me%2F&issued_by=https%3A%2F%2Ftokens.indieauth.com%2Ftoken&client_id=https%3A%2F%2Fbenjaminturner.me&issued_at=1552542719&scope=create+update+delete+undelete&nonce=203045553",
         )
 
         headers = {"HTTP_AUTHORIZATION": "Bearer 123"}
@@ -105,6 +105,12 @@ class MicroPubAuthorizedTestCase(TestCase):
 
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(json.loads(resp.content), expected)
+
+    def test_config_view_syndicate_to(self):
+        resp = self.client.get(self.endpoint, {"q": "syndicate-to"})
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(json.loads(resp.content), {"syndicate-to": []})
 
     def test_source_view_no_url(self):
         resp = self.client.get(self.endpoint, {"q": "source"})

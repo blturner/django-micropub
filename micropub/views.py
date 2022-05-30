@@ -156,7 +156,7 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
         if not query:
             return HttpResponseBadRequest()
 
-        if query == "config":
+        if query == "config" or query == "syndicate-to":
             view = ConfigView.as_view()
 
         if query == "source":
@@ -196,7 +196,11 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
 
         content = verify_authorization(self.request, authorization)
 
-        if "create" not in content.get("scope", []):
+        scopes = content.get('scope', [])
+        if len(scopes) > 0:
+            scopes = scopes[0].split(' ')
+
+        if "create" not in scopes:
             return JsonResponseForbidden({
                 "error": "insufficient_scope",
                 "scope": "create",
