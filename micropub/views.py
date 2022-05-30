@@ -225,10 +225,10 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
 
-        if "category" in kwargs.get("data", {}).keys():
+        if "category[]" in kwargs.get("data", {}).keys():
             data = {}
             data.update(kwargs.get("data"))
-            data["tags"] = data.pop("category")
+            data["tags"] = ', '.join(data.pop("category[]"))
             kwargs.update({"data": data})
 
         if self.request.accepts("text/html"):
