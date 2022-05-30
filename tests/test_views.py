@@ -60,6 +60,28 @@ class MicroPubUnauthorizedTestCase(TestCase):
 
         self.assertEqual(resp.status_code, 403)
 
+    @httpretty.activate
+    def test_form_encoded_insufficient_create_scope(self):
+        httpretty.register_uri(
+            httpretty.GET,
+            "https://tokens.indieauth.com/token",
+            body=b"me=https%3A%2F%2Fbenjaminturner.me%2F&issued_by=https%3A%2F%2Ftokens.indieauth.com%2Ftoken&client_id=https%3A%2F%2Fbenjaminturner.me&issued_at=1552542719&scope=&nonce=203045553",
+        )
+        headers = {"HTTP_AUTHORIZATION": "Bearer 123"}
+        data = {
+            "h": "entry",
+            "content": "form encoded",
+        }
+        resp = self.client.post(self.endpoint, data, **headers)
+
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.headers.get('Content-Type'), "application/json")
+        expected = {
+            "error": "insufficient_scope",
+            "scope": "create",
+        }
+        self.assertEqual(json.loads(resp.content), expected)
+
 
 @httpretty.activate
 class MicroPubAuthorizedTestCase(TestCase):

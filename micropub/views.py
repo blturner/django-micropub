@@ -24,6 +24,10 @@ KEY_MAPPING = [
 ]
 
 
+class JsonResponseForbidden(JsonResponse, HttpResponseForbidden):
+    pass
+
+
 class JSONResponseMixin:
     """
     A mixin that can be used to render a JSON response.
@@ -73,25 +77,31 @@ class JsonableResponseMixin:
             return JsonResponse(data)
 
 
+def verify_authorization(request, authorization):
+    resp = requests.get(
+        "https://tokens.indieauth.com/token",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": authorization,
+        },
+    )
+    content = parse_qs(resp.content.decode("utf-8"))
+    if content.get("error"):
+        return HttpResponseForbidden(content.get("error_description"))
+
+    request.session["scope"] = content.get("scope", [])
+
+    return content
+
+
 class IndieAuthMixin(object):
     def dispatch(self, request, *args, **kwargs):
         authorization = request.META.get("HTTP_AUTHORIZATION")
+
         if not authorization:
             return HttpResponse("Unauthorized", status=401)
 
-        resp = requests.get(
-            "https://tokens.indieauth.com/token",
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": authorization,
-            },
-        )
-        content = parse_qs(resp.content.decode("utf-8"))
-        if content.get("error"):
-            return HttpResponseForbidden(content.get("error_description"))
-
-        request.session["scope"] = content.get("scope", [])
-        # print(request.session.get("scope"))
+        verify_authorization(request, authorization)
 
         return super().dispatch(request, *args, **kwargs)
 
@@ -184,19 +194,13 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
             except KeyError:
                 return HttpResponse("Unauthorized", status=401)
 
-        resp = requests.get(
-            "https://tokens.indieauth.com/token",
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": authorization,
-            },
-        )
-        content = parse_qs(resp.content.decode("utf-8"))
-        if content.get("error"):
-            return HttpResponseForbidden(content.get("error_description"))
+        content = verify_authorization(self.request, authorization)
 
         if "create" not in content.get("scope", []):
-            return HttpResponseBadRequest()
+            return JsonResponseForbidden({
+                "error": "insufficient_scope",
+                "scope": "create",
+            })
 
         status_code = 200
         if self.object:
