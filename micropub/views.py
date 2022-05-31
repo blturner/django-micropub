@@ -1,4 +1,5 @@
 import json
+import logging
 import requests
 
 from urllib.parse import parse_qs
@@ -13,6 +14,9 @@ from django.views import View
 from django.views import generic
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+
+
+logger = logging.getLogger(__name__)
 
 
 KEY_MAPPING = [
@@ -88,6 +92,8 @@ def verify_authorization(request, authorization):
     content = parse_qs(resp.content.decode("utf-8"))
     if content.get("error"):
         return HttpResponseForbidden(content.get("error_description"))
+
+    logger.info(f"micropub scope: {0}".format(content.get("scope")))
 
     request.session["scope"] = content.get("scope", [])
 
