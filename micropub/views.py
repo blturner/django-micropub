@@ -190,21 +190,23 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
 
         if not authorization:
             try:
-                authorization = form.data['auth_token']
+                authorization = form.data["auth_token"]
             except KeyError:
                 return HttpResponse("Unauthorized", status=401)
 
         content = verify_authorization(self.request, authorization)
 
-        scopes = content.get('scope', [])
+        scopes = content.get("scope", [])
         if len(scopes) > 0:
-            scopes = scopes[0].split(' ')
+            scopes = scopes[0].split(" ")
 
         if "create" not in scopes:
-            return JsonResponseForbidden({
-                "error": "insufficient_scope",
-                "scope": "create",
-            })
+            return JsonResponseForbidden(
+                {
+                    "error": "insufficient_scope",
+                    "scope": "create",
+                }
+            )
 
         status_code = 200
         if self.object:
@@ -237,7 +239,7 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
         if "category" in kwargs.get("data", {}).keys():
             data = {}
             data.update(kwargs.get("data"))
-            data["tags"] = ', '.join(data.pop("category"))
+            data["tags"] = ", ".join(data.pop("category"))
             kwargs.update({"data": data})
 
         if self.request.accepts("text/html"):
@@ -273,7 +275,7 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
 
         if "category" in data.get("properties", {}).keys():
             properties = data.get("properties")
-            properties["tags"] = properties.pop("category")
+            properties["tags"] = ", ".join(properties.pop("category"))
 
         if "properties" in data.keys():
             kwargs.update(

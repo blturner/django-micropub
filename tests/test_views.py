@@ -75,7 +75,7 @@ class MicroPubUnauthorizedTestCase(TestCase):
         resp = self.client.post(self.endpoint, data, **headers)
 
         self.assertEqual(resp.status_code, 403)
-        self.assertEqual(resp.headers.get('Content-Type'), "application/json")
+        self.assertEqual(resp.headers.get("Content-Type"), "application/json")
         expected = {
             "error": "insufficient_scope",
             "scope": "create",
@@ -235,15 +235,10 @@ class MicroPubAuthorizedTestCase(TestCase):
         post = Post.objects.get(id=1)
 
         self.assertEqual(post.content, "hello world")
-        self.assertEqual(post.tags, "['apple', 'orange']")
-        # self.assertEqual(entry.status, "published")
-        # self.assertEqual(entry.post_type, "note")
+        self.assertEqual(post.tags, "apple, orange")
 
     def test_update_post_action(self):
-        post = Post.objects.create(
-            title="first post",
-            content="hello world"
-        )
+        post = Post.objects.create(title="first post", content="hello world")
 
         content_type = "application/json"
         data = {
