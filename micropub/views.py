@@ -82,6 +82,7 @@ class JsonableResponseMixin:
 
 
 def verify_authorization(request, authorization):
+    print(authorization)
     resp = requests.get(
         "https://tokens.indieauth.com/token",
         headers={
@@ -93,7 +94,9 @@ def verify_authorization(request, authorization):
     if content.get("error"):
         return HttpResponseForbidden(content.get("error_description"))
 
-    logger.info(f"micropub scope: {0}".format(content.get("scope")))
+    scope = content.get("scope")
+
+    logger.info(f"micropub scope: {scope}")
 
     request.session["scope"] = content.get("scope", [])
 
@@ -202,7 +205,7 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
             return HttpResponseBadRequest()
 
         if not authorization:
-            authorization = f"Bearer {0}".format(access_token)
+            authorization = f"Bearer {access_token}"
 
         content = verify_authorization(self.request, authorization)
 
