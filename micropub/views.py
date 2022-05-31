@@ -286,6 +286,13 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
                     }
                 }
             )
+            try:
+                if "html" in kwargs.get("data").get("content").keys():
+                    kwargs.get("data").update(
+                        {"content": kwargs.get("data").get("content").get("html")}
+                    )
+            except AttributeError:
+                pass
         return kwargs
 
 

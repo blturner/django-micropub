@@ -262,3 +262,25 @@ class MicroPubAuthorizedTestCase(TestCase):
         post = Post.objects.get(id=post.id)
         self.assertEqual(post.title, "first post")
         self.assertEqual(post.content, "hello moon")
+
+    def test_create_entry_html_json(self):
+        content_type = "application/json"
+        data = {
+            "type": ["h-entry"],
+            "properties": {"content": [{"html": "<h1>Hello world</h1>"}]},
+        }
+
+        resp = self.client.post(
+            self.endpoint,
+            content_type=content_type,
+            data=data,
+            HTTP_ACCEPT=content_type,
+        )
+
+        self.assertEqual(resp.status_code, 201)
+        self.assertTrue(resp.has_header("Location"))
+        self.assertEqual(Post.objects.count(), 1)
+
+        entry = Post.objects.get(id=1)
+
+        self.assertEqual(entry.content, "<h1>Hello world</h1>")
