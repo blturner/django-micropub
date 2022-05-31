@@ -191,6 +191,16 @@ class MicroPubAuthorizedTestCase(TestCase):
         # self.assertEqual(entry.status, "published")
         # self.assertEqual(entry.post_type, "note")
 
+    def test_create_post_with_one_tag(self):
+        data = {"content": "a post with some tags", "category": "apple"}
+        resp = self.client.post(self.endpoint, data)
+
+        self.assertEqual(resp.status_code, 201)
+
+        post = Post.objects.get(id=1)
+
+        self.assertEqual(post.tags, "apple")
+
     def test_create_post_with_tags(self):
         data = {"content": "a post with some tags", "category[]": ("apple", "orange")}
         resp = self.client.post(self.endpoint, data)
