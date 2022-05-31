@@ -190,7 +190,7 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
 
         if not authorization:
             try:
-                authorization = form.data["access_token"]
+                authorization = f"Bearer {0}".format(form.data["access_token"])
             except KeyError:
                 return HttpResponse("Unauthorized", status=401)
 
