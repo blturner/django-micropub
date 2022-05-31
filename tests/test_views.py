@@ -284,3 +284,13 @@ class MicroPubAuthorizedTestCase(TestCase):
         entry = Post.objects.get(id=1)
 
         self.assertEqual(entry.content, "<h1>Hello world</h1>")
+
+    def test_rejects_auth_header_and_form_encoded_token(self):
+        data = {
+            "h": "entry",
+            "content": "invalid",
+            "access_token": "123",
+        }
+        resp = self.client.post(self.endpoint, data=data)
+
+        self.assertEqual(resp.status_code, 400)

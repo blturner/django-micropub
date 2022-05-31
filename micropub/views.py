@@ -187,12 +187,16 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
 
     def form_valid(self, form):
         authorization = self.request.META.get("HTTP_AUTHORIZATION")
+        access_token = form.data.get("access_token")
+
+        if not authorization and not access_token:
+            return HttpResponse("Unauthorized", status=401)
+
+        if authorization and access_token:
+            return HttpResponseBadRequest()
 
         if not authorization:
-            try:
-                authorization = f"Bearer {0}".format(form.data["access_token"])
-            except KeyError:
-                return HttpResponse("Unauthorized", status=401)
+            authorization = f"Bearer {0}".format(access_token)
 
         content = verify_authorization(self.request, authorization)
 
