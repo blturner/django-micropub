@@ -4,6 +4,8 @@ import requests
 
 from urllib.parse import parse_qs
 
+from django.core.exceptions import BadRequest
+from django.forms.models import model_to_dict
 from django.http import (
     HttpResponse,
     HttpResponseBadRequest,
@@ -156,6 +158,45 @@ class SourceView(IndieAuthMixin, JSONResponseMixin, View):
         return self.render_to_json_response(context)
 
 
+class MicropubUpdateView(JsonableResponseMixin, generic.UpdateView):
+    def get_object(self):
+        obj = None
+
+        if self.request.content_type != "application/json":
+            return obj
+
+        try:
+            data = json.loads(self.request.body)
+            if "url" in data.keys():
+                url = data.get("url")
+                obj = self.model.from_url(url)
+        except json.decoder.JSONDecodeError:
+            raise BadRequest()
+        else:
+            return obj
+
+    def form_valid(self, form):
+        self.object = form.save()
+
+        return HttpResponse(status=204)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+
+        model_fields = model_to_dict(self.object)
+        kwargs.update({"data": model_fields})
+
+        if self.request.content_type == "application/json":
+            data = json.loads(self.request.body)
+            action = data.get("action")
+
+            if action == "update":
+                kwargs_data = kwargs.get("data")
+                kwargs_data.update({"content": data.get("replace").get("content")[0]})
+
+        return kwargs
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 class MicropubView(JsonableResponseMixin, generic.CreateView):
     def get(self, request, *args, **kwargs):
@@ -173,8 +214,41 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
         return view(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
-        self.object = self.get_object()
+        action = "create"
         form = self.get_form()
+
+        authorization = self.request.META.get("HTTP_AUTHORIZATION")
+        access_token = form.data.get("access_token")
+
+        if not authorization and not access_token:
+            return HttpResponse("Unauthorized", status=401)
+
+        if authorization and access_token:
+            return HttpResponseBadRequest()
+
+        if not authorization and access_token:
+            authorization = f"Bearer {access_token}"
+
+        content = verify_authorization(self.request, authorization)
+        scopes = content.get("scope", [])
+        if len(scopes) > 0:
+            scopes = scopes[0].split(" ")
+
+        if request.content_type == "application/json":
+            action = json.loads(request.body).get("action", action)
+
+        if action not in scopes:
+            return JsonResponseForbidden(
+                {"error": "insufficient_scope", "scope": action}
+            )
+
+        if action == "update":
+            view = MicropubUpdateView.as_view(
+                model=self.model, form_class=self.form_class
+            )
+            return view(request, *args, **kwargs)
+
+        self.object = self.get_object()
         if form.is_valid():
             return self.form_valid(form)
         else:
@@ -183,64 +257,33 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
     def get_object(self, queryset=None):
         obj = None
 
+        if self.request.content_type != "application/json":
+            return obj
+
         try:
             data = json.loads(self.request.body)
             if "url" in data.keys():
                 url = data.get("url")
                 obj = self.model.from_url(url)
         except json.decoder.JSONDecodeError:
+            raise BadRequest()
+        else:
             return obj
 
-        return obj
-
     def form_valid(self, form):
-        authorization = self.request.META.get("HTTP_AUTHORIZATION")
-        access_token = form.data.get("access_token")
+        self.object = form.save()
 
-        logger.info(f"authorization: {authorization}")
-        logger.info(f"access_token: {access_token}")
-
-        if not authorization and not access_token:
-            return HttpResponse("Unauthorized", status=401)
-
-        if authorization and access_token:
-            return HttpResponseBadRequest()
-
-        if not authorization:
-            authorization = f"Bearer {access_token}"
-
-        content = verify_authorization(self.request, authorization)
-
-        scopes = content.get("scope", [])
-        if len(scopes) > 0:
-            scopes = scopes[0].split(" ")
-
-        if "create" not in scopes:
-            return JsonResponseForbidden(
-                {
-                    "error": "insufficient_scope",
-                    "scope": "create",
-                }
-            )
-
-        status_code = 200
-        if self.object:
-            self.object = form.save(commit=False)
-            self.object.save(update_fields=form.data.keys())
-            self.object = self.model.objects.get(pk=self.object.pk)
-        else:
-            self.object = form.save()
-            status_code = 201
-        resp = HttpResponse(status=status_code)
-
-        if status_code == 201:
-            resp["Location"] = self.request.build_absolute_uri(
-                self.object.get_absolute_url()
-            )
+        resp = HttpResponse(status=201)
+        resp["Location"] = self.request.build_absolute_uri(
+            self.object.get_absolute_url()
+        )
         return resp
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
+
+        if hasattr(self, "object"):
+            kwargs.update({"instance": self.object})
 
         kwargs_data = kwargs.get("data", {})
         kwargs_data_copy = {}
@@ -257,7 +300,7 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
             data["tags"] = ", ".join(data.pop("category"))
             kwargs.update({"data": data})
 
-        if self.request.accepts("text/html"):
+        if self.request.content_type != "application/json":
             return kwargs
 
         try:
@@ -269,6 +312,9 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
             action = data.get("action")
 
             if action == "update":
+                if "url" not in data.keys():
+                    raise BadRequest()
+
                 data.update(
                     {
                         "replace": json.dumps(data.get("replace", {})),
@@ -309,126 +355,3 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
             except AttributeError:
                 pass
         return kwargs
-
-
-# class MicropubView(generic.FormView):
-#     model = None
-
-#     def get(self, request, *args, **kwargs):
-#         query = self.request.GET.get("q")
-
-#         if not query:
-#             return HttpResponseBadRequest()
-
-#         if query == "config":
-#             view = ConfigView.as_view()
-
-#         if query == "source":
-#             view = SourceView.as_view(model=self.model)
-
-#         return view(request, *args, **kwargs)
-
-#     def post(self, request, *args, **kwargs):
-#         embed_file = None
-#         embed_alt_text = None
-
-#         if request.content_type == "application/json":
-#             data = json.loads(request.body)
-#             action = data.get("action")
-
-#             if action == "update":
-#                 data.update(
-#                     {
-#                         "replace": json.dumps(data.get("replace", {})),
-#                         "add": json.dumps(data.get("add", {})),
-#                         "delete": json.dumps(data.get("delete", {})),
-#                     }
-#                 )
-
-#                 post_data = request.POST.copy()
-#                 post_data.update(data)
-#                 request.POST = post_data
-
-#                 return PostUpdateView.as_view()(request, *args, **kwargs)
-
-#             if action == "delete" or action == "undelete":
-#                 post_data = request.POST.copy()
-#                 post_data.update(data)
-#                 request.POST = post_data
-
-#             fields = {}
-#             keys = []
-
-#             if "properties" in data.keys():
-#                 keys = data["properties"].keys()
-
-#             if "name" in keys:
-#                 fields["title"] = data["properties"]["name"][0]
-
-#             if "post-status" in keys:
-#                 fields["status"] = data["properties"]["post-status"][0]
-
-#             if "mp-slug" in keys:
-#                 fields["slug"] = data["properties"]["mp-slug"][0]
-
-#             if "content" in keys:
-#                 content = data["properties"]["content"][0]
-
-#                 if type(content) == dict and content.get("html"):
-#                     fields["content"] = content["html"]
-#                 else:
-#                     fields["content"] = content
-
-#             if "photo" in keys:
-#                 photo = data["properties"]["photo"][0]
-
-#                 if type(photo) == dict:
-#                     embed_alt_text = photo.get("alt")
-#                     embed_file = photo.get("value")
-#                 else:
-#                     embed_file = photo
-
-#             if "category" in keys:
-#                 fields["tags"] = " ".join(data["properties"]["category"])
-
-#             if "in-reply-to" in keys:
-#                 fields["reply_to"] = data["properties"]["in-reply-to"][0]
-
-#         action = request.POST.get("action")
-
-#         if action == "delete" or action == "undelete":
-#             return DeleteView.as_view()(request, *args, **kwargs)
-
-#         form = self.form_class(request.POST or fields)
-
-#         if form.is_valid():
-#             instance = form.save(commit=False)
-
-#             for pair in KEY_MAPPING:
-#                 val = request.POST.get(pair[1])
-#                 if val:
-#                     instance.__dict__[pair[0]] = val
-
-#             if instance.title:
-#                 instance.post_type = "post"
-
-#             media_url = embed_file or self.request.POST.get("photo")
-
-#             instance.save()
-
-#             # if media_url:
-#             #     parsed = urlparse(media_url)
-#             #     file_name = parsed.path.split("/")[-1]
-#             #     media = Media.objects.get(file__contains=file_name)
-
-#             #     Post.media.add(media)
-
-#             # make sure tags are saved
-#             form.save_m2m()
-
-#             resp = HttpResponse(status=201)
-#             resp["Location"] = request.build_absolute_uri(
-#                 instance.get_absolute_url()
-#             )
-#             return resp
-#         return HttpResponseBadRequest()
