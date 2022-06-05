@@ -237,7 +237,7 @@ class MicroPubAuthorizedTestCase(TestCase):
         self.assertEqual(post.content, "hello world")
         self.assertEqual(post.tags, "apple, orange")
 
-    def test_update_post_action(self):
+    def test_update_post_action_json(self):
         post = Post.objects.create(title="first post", content="hello world")
 
         content_type = "application/json"
@@ -343,3 +343,29 @@ class MicroPubAuthorizedTestCase(TestCase):
         resp = self.client.post(self.endpoint, data=data)
 
         self.assertEqual(resp.status_code, 400)
+
+    def test_add_value_to_existing_property(self):
+        """
+        401: Add a value to an existing property
+        https://micropub.rocks/server-tests/401
+        """
+        Post.objects.create(
+            content="Micropub update test for adding a category. After you run the update, this post should have two categories: test1 and test2.",
+            tags="test1",
+        )
+        content_type = "application/json"
+        data = {
+            "action": "update",
+            "url": "http://example.com/notes/1/",
+            "add": {"category": ["test2"]},
+        }
+        resp = self.client.post(
+            self.endpoint,
+            content_type=content_type,
+            data=data,
+            # HTTP_ACCEPT=content_type,
+        )
+
+        post = Post.objects.get(id=1)
+
+        self.assertEqual(post.tags, "test1, test2")

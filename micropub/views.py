@@ -14,6 +14,7 @@ from django.http import (
 )
 from django.views import View
 from django.views import generic
+from django.views.generic.edit import ModelFormMixin
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 
@@ -158,6 +159,70 @@ class SourceView(IndieAuthMixin, JSONResponseMixin, View):
         return self.render_to_json_response(context)
 
 
+class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
+    def form_valid(self, form):
+        self.object = form.save()
+
+        resp = HttpResponse(status=201)
+        resp["Location"] = self.request.build_absolute_uri(
+            self.object.get_absolute_url()
+        )
+        return resp
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+
+        if self.request.content_type == "application/json":
+            try:
+                data = json.loads(self.request.body)
+
+                if "category" in data.get("properties", {}).keys():
+                    properties = data.get("properties")
+                    properties["tags"] = ", ".join(properties.pop("category"))
+
+                if "properties" in data.keys():
+                    kwargs.update(
+                        {
+                            "data": {
+                                k: v[0] if len(v) == 1 else v
+                                for (k, v) in data.get("properties", {}).items()
+                            }
+                        }
+                    )
+                    try:
+                        if "html" in kwargs.get("data").get("content").keys():
+                            kwargs.get("data").update(
+                                {
+                                    "content": kwargs.get("data")
+                                    .get("content")
+                                    .get("html")
+                                }
+                            )
+                    except AttributeError:
+                        pass
+
+                    return kwargs
+            except json.decoder.JSONDecodeError:
+                raise BadRequest()
+
+        kwargs_data = kwargs.get("data", {})
+        kwargs_data_copy = {}
+        for key in kwargs_data.keys():
+            if key in ["category", "category[]"]:
+                kwargs_data_copy["category"] = kwargs_data.getlist(key)
+            else:
+                kwargs_data_copy[key] = kwargs_data.get(key)
+        kwargs.update({"data": kwargs_data_copy})
+
+        if "category" in kwargs.get("data", {}).keys():
+            data = {}
+            data.update(kwargs.get("data"))
+            data["tags"] = ", ".join(data.pop("category"))
+            kwargs.update({"data": data})
+
+        return kwargs
+
+
 class MicropubUpdateView(JsonableResponseMixin, generic.UpdateView):
     def get_object(self):
         obj = None
@@ -167,13 +232,12 @@ class MicropubUpdateView(JsonableResponseMixin, generic.UpdateView):
 
         try:
             data = json.loads(self.request.body)
-            if "url" in data.keys():
-                url = data.get("url")
-                obj = self.model.from_url(url)
-        except json.decoder.JSONDecodeError:
+            obj = self.model.from_url(data["url"])
+        except (json.decoder.JSONDecodeError, KeyError):
             raise BadRequest()
-        else:
-            return obj
+        # else:
+        #     return obj
+        return obj
 
     def form_valid(self, form):
         self.object = form.save()
@@ -183,22 +247,38 @@ class MicropubUpdateView(JsonableResponseMixin, generic.UpdateView):
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
 
-        model_fields = model_to_dict(self.object)
-        kwargs.update({"data": model_fields})
+        if self.object:
+            model_fields = model_to_dict(self.object)
+            kwargs.update({"data": model_fields})
 
         if self.request.content_type == "application/json":
             data = json.loads(self.request.body)
+            data_keys = data.keys()
             action = data.get("action")
 
             if action == "update":
                 kwargs_data = kwargs.get("data")
-                kwargs_data.update({"content": data.get("replace").get("content")[0]})
+
+                if "replace" in data_keys:
+                    kwargs_data.update(
+                        {"content": data.get("replace").get("content")[0]}
+                    )
+                    kwargs.update({"data": kwargs_data})
+
+                if "add" in data_keys:
+                    for k in data.get("add").keys():
+                        model_k = k
+                        if k == "category":
+                            k = "tags"
+                        vals = [kwargs_data[k]] + data.get("add").get(model_k)
+                        kwargs_data[k] = ", ".join(vals)
+                    kwargs.update({"data": kwargs_data})
 
         return kwargs
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-class MicropubView(JsonableResponseMixin, generic.CreateView):
+class MicropubView(JsonableResponseMixin, ModelFormMixin, generic.View):
     def get(self, request, *args, **kwargs):
         query = self.request.GET.get("q")
 
@@ -242,116 +322,14 @@ class MicropubView(JsonableResponseMixin, generic.CreateView):
                 {"error": "insufficient_scope", "scope": action}
             )
 
+        if action == "create":
+            view = MicropubCreateView.as_view(
+                model=self.model, form_class=self.form_class
+            )
+
         if action == "update":
             view = MicropubUpdateView.as_view(
                 model=self.model, form_class=self.form_class
             )
-            return view(request, *args, **kwargs)
 
-        self.object = self.get_object()
-        if form.is_valid():
-            return self.form_valid(form)
-        else:
-            return self.form_invalid(form)
-
-    def get_object(self, queryset=None):
-        obj = None
-
-        if self.request.content_type != "application/json":
-            return obj
-
-        try:
-            data = json.loads(self.request.body)
-            if "url" in data.keys():
-                url = data.get("url")
-                obj = self.model.from_url(url)
-        except json.decoder.JSONDecodeError:
-            raise BadRequest()
-        else:
-            return obj
-
-    def form_valid(self, form):
-        self.object = form.save()
-
-        resp = HttpResponse(status=201)
-        resp["Location"] = self.request.build_absolute_uri(
-            self.object.get_absolute_url()
-        )
-        return resp
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-
-        if hasattr(self, "object"):
-            kwargs.update({"instance": self.object})
-
-        kwargs_data = kwargs.get("data", {})
-        kwargs_data_copy = {}
-        for key in kwargs_data.keys():
-            if key in ["category", "category[]"]:
-                kwargs_data_copy["category"] = kwargs_data.getlist(key)
-            else:
-                kwargs_data_copy[key] = kwargs_data.get(key)
-        kwargs.update({"data": kwargs_data_copy})
-
-        if "category" in kwargs.get("data", {}).keys():
-            data = {}
-            data.update(kwargs.get("data"))
-            data["tags"] = ", ".join(data.pop("category"))
-            kwargs.update({"data": data})
-
-        if self.request.content_type != "application/json":
-            return kwargs
-
-        try:
-            data = json.loads(self.request.body)
-        except json.decoder.JSONDecodeError:
-            data = {}
-
-        if "action" in data.keys():
-            action = data.get("action")
-
-            if action == "update":
-                if "url" not in data.keys():
-                    raise BadRequest()
-
-                data.update(
-                    {
-                        "replace": json.dumps(data.get("replace", {})),
-                        "add": json.dumps(data.get("add", {})),
-                        "delete": json.dumps(data.get("delete", {})),
-                    }
-                )
-
-                replace_data = json.loads(data.get("replace"))
-                kwargs.update(
-                    {
-                        "data": {
-                            k: v[0] if len(v) == 1 else v
-                            for (k, v) in replace_data.items()
-                        }
-                    }
-                )
-                return kwargs
-
-        if "category" in data.get("properties", {}).keys():
-            properties = data.get("properties")
-            properties["tags"] = ", ".join(properties.pop("category"))
-
-        if "properties" in data.keys():
-            kwargs.update(
-                {
-                    "data": {
-                        k: v[0] if len(v) == 1 else v
-                        for (k, v) in data.get("properties", {}).items()
-                    }
-                }
-            )
-            try:
-                if "html" in kwargs.get("data").get("content").keys():
-                    kwargs.get("data").update(
-                        {"content": kwargs.get("data").get("content").get("html")}
-                    )
-            except AttributeError:
-                pass
-        return kwargs
+        return view(request, *args, **kwargs)
