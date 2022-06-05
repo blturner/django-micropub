@@ -369,3 +369,28 @@ class MicroPubAuthorizedTestCase(TestCase):
         post = Post.objects.get(id=1)
 
         self.assertEqual(post.tags, "test1, test2")
+
+    def test_replace_content_and_add_value_to_existing_property(self):
+        Post.objects.create(
+            content="Micropub update test for adding a category. After you run the update, this post should have two categories: test1 and test2.",
+            tags="test1",
+        )
+        content_type = "application/json"
+        data = {
+            "action": "update",
+            "url": "http://example.com/notes/1/",
+            "replace": {"content": ["hello world"]},
+            "add": {"category": ["test2"]},
+        }
+        resp = self.client.post(
+            self.endpoint,
+            content_type=content_type,
+            data=data,
+            # HTTP_ACCEPT=content_type,
+        )
+
+        post = Post.objects.get(id=1)
+
+        self.assertEqual(Post.objects.all().count(), 1)
+        self.assertEqual(post.content, "hello world")
+        self.assertEqual(post.tags, "test1, test2")
