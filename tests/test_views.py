@@ -448,6 +448,31 @@ class MicroPubAuthorizedTestCase(TestCase):
         self.assertEqual(post.content, "hello world")
         self.assertEqual(post.tags, "test1, test2")
 
+    def test_remove_property(self):
+        Post.objects.create(
+            content="This test deletes a category from the post. After you run the update, this post should have only the category test1.",
+            tags="test1, test2",
+        )
+        content_type = "application/json"
+        data = {
+            "action": "update",
+            "url": "http://example.com/notes/1/",
+            "remove": ["category"],
+        }
+        resp = self.client.post(
+            self.endpoint,
+            content_type=content_type,
+            data=data,
+            # HTTP_ACCEPT=content_type,
+        )
+
+        self.assertEqual(resp.status_code, 204)
+
+        post = Post.objects.get(id=1)
+
+        self.assertEqual(Post.objects.all().count(), 1)
+        self.assertFalse(post.tags)
+
     def test_remove_value_from_property(self):
         Post.objects.create(
             content="This test deletes a category from the post. After you run the update, this post should have only the category test1.",
