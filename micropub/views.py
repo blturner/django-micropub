@@ -171,7 +171,8 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
 
     def form_invalid(self, form):
         return JsonResponse(
-            {"error": "invalid_request", "error_description": form.errors}, status=400
+            {"error": "invalid_request", "error_description": form.errors},
+            status=400,
         )
 
     def get_form_kwargs(self):
@@ -190,7 +191,9 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
                         {
                             "data": {
                                 k: v[0] if len(v) == 1 else v
-                                for (k, v) in data.get("properties", {}).items()
+                                for (k, v) in data.get(
+                                    "properties", {}
+                                ).items()
                             }
                         }
                     )
@@ -278,7 +281,9 @@ class MicropubUpdateView(JsonableResponseMixin, generic.UpdateView):
                             k = "tags"
 
                         if kwargs_data[k]:
-                            vals = self.get_tags() + data.get("add").get(model_k)
+                            vals = self.get_tags() + data.get("add").get(
+                                model_k
+                            )
                             kwargs_data[k] = ", ".join(vals)
                         else:
                             kwargs_data[k] = data.get("add").get(model_k)[0]
