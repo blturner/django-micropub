@@ -299,13 +299,13 @@ class MicropubUpdateView(JsonableResponseMixin, generic.UpdateView):
                         kwargs_data[remove_prop] = None
                         kwargs.update({"data": kwargs_data})
                     else:
-                        for k in data.get("remove").keys():
+                        for k in remove.keys():
                             model_k = k
                             if k == "category":
                                 k = "tags"
 
                             tags = self.get_tags()
-                            remove_tag = data.get("remove").get(model_k)
+                            remove_tag = remove.get(model_k)
                             tags = tags.replace(remove_tag[0], "")
                             kwargs_data[k] = tags.rsplit(",")[0]
                         kwargs.update({"data": kwargs_data})
