@@ -497,3 +497,36 @@ class MicroPubAuthorizedTestCase(TestCase):
 
         self.assertEqual(Post.objects.all().count(), 1)
         self.assertEqual(post.tags, "test1")
+
+    def test_update_with_bad_request(self):
+        Post.objects.create(
+            content="This test deletes a category from the post. After you run the update, this post should have only the category test1.",
+        )
+        content_type = "application/json"
+        data = {
+            "action": "update",
+            "url": "http://example.com/notes/1/",
+            "replace": "This is in an invalid format, it should be wrapped in [].",
+        }
+        resp = self.client.post(
+            self.endpoint,
+            content_type=content_type,
+            data=data,
+            # HTTP_ACCEPT=content_type,
+        )
+        self.assertEqual(resp.status_code, 400)
+
+        data = {
+            "action": "update",
+            "url": "http://example.com/notes/1/",
+            "replace": {
+                "content": "This is in an invalid format, it should be wrapped in []."
+            },
+        }
+        resp = self.client.post(
+            self.endpoint,
+            content_type=content_type,
+            data=data,
+            # HTTP_ACCEPT=content_type,
+        )
+        self.assertEqual(resp.status_code, 400)

@@ -268,10 +268,16 @@ class MicropubUpdateView(JsonableResponseMixin, generic.UpdateView):
                 kwargs_data = kwargs.get("data")
 
                 if "replace" in data_keys:
-                    kwargs_data.update(
-                        {"content": data.get("replace").get("content")[0]}
-                    )
-                    kwargs.update({"data": kwargs_data})
+                    replace = data.get("replace")
+
+                    try:
+                        for k, v in replace.items():
+                            if not isinstance(v, list):
+                                raise BadRequest()
+                            kwargs_data.update({k: v[0]})
+                            kwargs.update({"data": kwargs_data})
+                    except AttributeError:
+                        raise BadRequest()
 
                 if "add" in data_keys:
                     for k in data.get("add").keys():
