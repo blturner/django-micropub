@@ -169,6 +169,11 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
         )
         return resp
 
+    def form_invalid(self, form):
+        return JsonResponse(
+            {"error": "invalid_request", "error_description": form.errors}, status=400
+        )
+
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
 
@@ -268,17 +273,28 @@ class MicropubUpdateView(JsonableResponseMixin, generic.UpdateView):
                 if "add" in data_keys:
                     for k in data.get("add").keys():
                         model_k = k
+
                         if k == "category":
                             k = "tags"
-                        vals = [kwargs_data[k]] + data.get("add").get(model_k)
-                        kwargs_data[k] = ", ".join(vals)
+
+                        if kwargs_data[k]:
+                            vals = self.get_tags() + data.get("add").get(model_k)
+                            kwargs_data[k] = ", ".join(vals)
+                        else:
+                            kwargs_data[k] = data.get("add").get(model_k)[0]
                     kwargs.update({"data": kwargs_data})
 
         return kwargs
 
+    def get_tags(self):
+        tags = [self.object.tags]
+        return tags
+
 
 @method_decorator(csrf_exempt, name="dispatch")
 class MicropubView(JsonableResponseMixin, ModelFormMixin, generic.View):
+    update_view = MicropubUpdateView
+
     def get(self, request, *args, **kwargs):
         query = self.request.GET.get("q")
 
@@ -328,7 +344,7 @@ class MicropubView(JsonableResponseMixin, ModelFormMixin, generic.View):
             )
 
         if action == "update":
-            view = MicropubUpdateView.as_view(
+            view = self.update_view.as_view(
                 model=self.model, form_class=self.form_class
             )
 
