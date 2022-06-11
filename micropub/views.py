@@ -18,6 +18,8 @@ from django.views.generic.edit import ModelFormMixin
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 
+from .forms import DeleteForm
+
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +117,22 @@ class IndieAuthMixin(object):
         verify_authorization(request, authorization)
 
         return super().dispatch(request, *args, **kwargs)
+
+
+class MicropubObjectMixin(object):
+    def get_object(self):
+        obj = None
+
+        if self.request.content_type == "application/json":
+            try:
+                data = json.loads(self.request.body)
+                obj = self.model.from_url(data["url"])
+            except (json.decoder.JSONDecodeError, KeyError):
+                raise BadRequest()
+        else:
+            if "url" in self.request.POST.keys():
+                obj = self.model.from_url(self.request.POST["url"])
+        return obj
 
 
 class ConfigView(IndieAuthMixin, JSONResponseMixin, View):
@@ -231,22 +249,9 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
         return kwargs
 
 
-class MicropubUpdateView(JsonableResponseMixin, generic.UpdateView):
-    def get_object(self):
-        obj = None
-
-        if self.request.content_type != "application/json":
-            return obj
-
-        try:
-            data = json.loads(self.request.body)
-            obj = self.model.from_url(data["url"])
-        except (json.decoder.JSONDecodeError, KeyError):
-            raise BadRequest()
-        # else:
-        #     return obj
-        return obj
-
+class MicropubUpdateView(
+    MicropubObjectMixin, JsonableResponseMixin, generic.UpdateView
+):
     def form_valid(self, form):
         self.object = form.save()
 
@@ -322,6 +327,29 @@ class MicropubUpdateView(JsonableResponseMixin, generic.UpdateView):
         return self.object.tags
 
 
+class MicropubDeleteView(MicropubObjectMixin, generic.DeleteView):
+    form_class = DeleteForm
+
+    def form_valid(self, form):
+        self.object.delete()
+        return HttpResponse(status=204)
+
+    def form_invalid(self, form):
+        return JsonResponse(
+            {"error": "invalid_request", "error_description": form.errors},
+            status=400,
+        )
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+
+        if self.request.content_type == "application/json":
+            data = json.loads(self.request.body)
+            kwargs.update({"data": data})
+
+        return kwargs
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 class MicropubView(JsonableResponseMixin, ModelFormMixin, generic.View):
     update_view = MicropubUpdateView
@@ -343,6 +371,9 @@ class MicropubView(JsonableResponseMixin, ModelFormMixin, generic.View):
     def post(self, request, *args, **kwargs):
         action = "create"
         form = self.get_form()
+
+        if "action" in form.data.keys():
+            action = form.data.get("action")
 
         authorization = self.request.META.get("HTTP_AUTHORIZATION")
         access_token = form.data.get("access_token")
@@ -378,5 +409,8 @@ class MicropubView(JsonableResponseMixin, ModelFormMixin, generic.View):
             view = self.update_view.as_view(
                 model=self.model, form_class=self.form_class
             )
+
+        if action == "delete":
+            view = MicropubDeleteView.as_view(model=self.model)
 
         return view(request, *args, **kwargs)

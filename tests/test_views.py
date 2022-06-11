@@ -139,6 +139,77 @@ class MicroPubAuthorizedTestCase(TestCase):
         # self.assertEqual(entry.status, "published")
         # self.assertEqual(entry.post_type, "note")
 
+    def test_delete_entry(self):
+        Post.objects.create(content="hello world")
+
+        resp = self.client.post(
+            self.endpoint,
+            {"action": "delete", "url": "http://example.com/notes/1/"},
+        )
+
+        self.assertEqual(resp.status_code, 204)
+        self.assertEqual(Post.available_objects.count(), 0)
+        self.assertEqual(Post.all_objects.count(), 1)
+
+    def test_delete_entry_json(self):
+        Post.objects.create(content="hello world")
+        content_type = "application/json"
+        data = {"action": "delete", "url": "http://example.com/notes/1/"}
+        resp = self.client.post(
+            self.endpoint,
+            data=data,
+            content_type=content_type,
+            # HTTP_ACCEPT=content_type,
+        )
+        self.assertEqual(resp.status_code, 204)
+        self.assertEqual(Post.available_objects.count(), 0)
+        self.assertEqual(Post.all_objects.count(), 1)
+
+    def test_delete_entry_missing_url(self):
+        resp = self.client.post(
+            self.endpoint,
+            {"action": "delete"},
+        )
+
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(
+            json.loads(resp.content),
+            {
+                "error": "invalid_request",
+                "error_description": {"url": ["This field is required."]},
+            },
+        )
+
+    def test_delete_entry_missing_url_json(self):
+        # Post.objects.create(content="hello world")
+        content_type = "application/json"
+        data = {"action": "delete"}
+        resp = self.client.post(
+            self.endpoint,
+            data=data,
+            content_type=content_type,
+            # HTTP_ACCEPT=content_type,
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_delete_entry_missing_action(self):
+        resp = self.client.post(
+            self.endpoint,
+            {"url": "http://example.com/notes/1/"},
+        )
+
+        self.assertEqual(resp.status_code, 400)
+
+        # if the action key is omitted, it is assumed this is a request to
+        # create a resource, so the error will be for a missing content key.
+        self.assertEqual(
+            json.loads(resp.content),
+            {
+                "error": "invalid_request",
+                "error_description": {"content": ["This field is required."]},
+            },
+        )
+
     def test_create_advanced_post(self):
         resp = self.client.post(
             self.advanced,
