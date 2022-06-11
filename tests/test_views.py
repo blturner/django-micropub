@@ -457,7 +457,7 @@ class MicroPubAuthorizedTestCase(TestCase):
         data = {
             "action": "update",
             "url": "http://example.com/notes/1/",
-            "remove": ["category"],
+            "delete": ["category"],
         }
         resp = self.client.post(
             self.endpoint,
@@ -482,7 +482,7 @@ class MicroPubAuthorizedTestCase(TestCase):
         data = {
             "action": "update",
             "url": "http://example.com/notes/1/",
-            "remove": {"category": ["test2"]},
+            "delete": {"category": ["test2"]},
         }
         resp = self.client.post(
             self.endpoint,

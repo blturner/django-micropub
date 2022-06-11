@@ -290,8 +290,8 @@ class MicropubUpdateView(JsonableResponseMixin, generic.UpdateView):
                             kwargs_data[k] = add_tag[0]
                     kwargs.update({"data": kwargs_data})
 
-                if "remove" in data_keys:
-                    remove = data.get("remove")
+                if "delete" in data_keys:
+                    remove = data.get("delete")
                     if isinstance(remove, list):
                         remove_prop = remove[0]
                         if remove_prop == "category":
