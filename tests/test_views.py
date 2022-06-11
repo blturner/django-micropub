@@ -24,7 +24,9 @@ class MicroPubUnauthorizedTestCase(TestCase):
         self.assertEqual(resp.status_code, 401)
 
     def test_unauthorized_post(self):
-        resp = self.client.post(self.endpoint, {"h": "entry", "content": "bananas"})
+        resp = self.client.post(
+            self.endpoint, {"h": "entry", "content": "bananas"}
+        )
 
         self.assertEqual(resp.status_code, 401)
 
@@ -202,7 +204,10 @@ class MicroPubAuthorizedTestCase(TestCase):
         self.assertEqual(post.tags, "apple")
 
     def test_create_post_with_tags(self):
-        data = {"content": "a post with some tags", "category[]": ("apple", "orange")}
+        data = {
+            "content": "a post with some tags",
+            "category[]": ("apple", "orange"),
+        }
         resp = self.client.post(self.endpoint, data)
 
         self.assertEqual(resp.status_code, 201)
@@ -354,7 +359,8 @@ class MicroPubAuthorizedTestCase(TestCase):
             "url": "http://example.com/notes/1/",
             "add": {"category": ["test1"]},
         }
-        resp = self.client.post(
+
+        self.client.post(
             self.endpoint,
             content_type=content_type,
             data=data,

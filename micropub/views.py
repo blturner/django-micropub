@@ -280,20 +280,20 @@ class MicropubUpdateView(JsonableResponseMixin, generic.UpdateView):
                         if k == "category":
                             k = "tags"
 
-                        if kwargs_data[k]:
-                            vals = self.get_tags() + data.get("add").get(
-                                model_k
-                            )
+                        tags = self.get_tags()
+                        add_tag = data.get("add").get(model_k)
+
+                        if tags and (tags != add_tag[0]):
+                            vals = [tags] + add_tag
                             kwargs_data[k] = ", ".join(vals)
                         else:
-                            kwargs_data[k] = data.get("add").get(model_k)[0]
+                            kwargs_data[k] = add_tag[0]
                     kwargs.update({"data": kwargs_data})
 
         return kwargs
 
     def get_tags(self):
-        tags = [self.object.tags]
-        return tags
+        return self.object.tags
 
 
 @method_decorator(csrf_exempt, name="dispatch")
