@@ -209,9 +209,7 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
                         {
                             "data": {
                                 k: v[0] if len(v) == 1 else v
-                                for (k, v) in data.get(
-                                    "properties", {}
-                                ).items()
+                                for (k, v) in data.get("properties", {}).items()
                             }
                         }
                     )
@@ -350,6 +348,14 @@ class MicropubDeleteView(MicropubObjectMixin, generic.DeleteView):
         return kwargs
 
 
+class MicropubUndeleteView(MicropubDeleteView):
+    def form_valid(self, form):
+        if self.object:
+            self.object.is_removed = False
+            self.object.save()
+        return HttpResponse(status=204)
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 class MicropubView(JsonableResponseMixin, ModelFormMixin, generic.View):
     update_view = MicropubUpdateView
@@ -412,5 +418,8 @@ class MicropubView(JsonableResponseMixin, ModelFormMixin, generic.View):
 
         if action == "delete":
             view = MicropubDeleteView.as_view(model=self.model)
+
+        if action == "undelete":
+            view = MicropubUndeleteView.as_view(model=self.model)
 
         return view(request, *args, **kwargs)

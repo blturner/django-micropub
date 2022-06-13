@@ -17,7 +17,7 @@ class Post(MicropubModel, models.Model):
     @staticmethod
     def from_url(url):
         view, args, kwargs = resolve(urlparse(url).path)
-        post = Post.objects.get(pk=kwargs.get("pk"))
+        post = Post.all_objects.get(pk=kwargs.get("pk"))
         return post
 
 

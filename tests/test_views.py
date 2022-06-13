@@ -24,9 +24,7 @@ class MicroPubUnauthorizedTestCase(TestCase):
         self.assertEqual(resp.status_code, 401)
 
     def test_unauthorized_post(self):
-        resp = self.client.post(
-            self.endpoint, {"h": "entry", "content": "bananas"}
-        )
+        resp = self.client.post(self.endpoint, {"h": "entry", "content": "bananas"})
 
         self.assertEqual(resp.status_code, 401)
 
@@ -209,6 +207,39 @@ class MicroPubAuthorizedTestCase(TestCase):
                 "error_description": {"content": ["This field is required."]},
             },
         )
+
+    def test_undelete(self):
+        post = Post.objects.create(content="hello world")
+        post.delete()
+
+        self.assertTrue(post.is_removed)
+
+        resp = self.client.post(
+            self.endpoint,
+            {"action": "undelete", "url": "http://example.com/notes/1/"},
+        )
+
+        self.assertEqual(resp.status_code, 204)
+        self.assertEqual(Post.available_objects.count(), 1)
+        self.assertEqual(Post.all_objects.count(), 1)
+        self.assertFalse(Post.objects.get(pk=1).is_removed)
+
+    def test_undelete_json(self):
+        post = Post.objects.create(content="hello world")
+        post.delete()
+
+        self.assertTrue(post.is_removed)
+
+        resp = self.client.post(
+            self.endpoint,
+            {"action": "undelete", "url": "http://example.com/notes/1/"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 204)
+        self.assertEqual(Post.available_objects.count(), 1)
+        self.assertEqual(Post.all_objects.count(), 1)
+        self.assertFalse(Post.objects.get(pk=1).is_removed)
 
     def test_create_advanced_post(self):
         resp = self.client.post(
