@@ -345,7 +345,9 @@ class MicroPubAuthorizedTestCase(TestCase):
         self.assertEqual(post.tags, "apple, orange")
 
     def test_update_post_action_json(self):
-        post = Post.objects.create(title="first post", content="hello world")
+        post = Post.objects.create(
+            title="first post", content="hello world", tags="test1, test2"
+        )
 
         content_type = "application/json"
         data = {
@@ -369,6 +371,7 @@ class MicroPubAuthorizedTestCase(TestCase):
         post = Post.objects.get(id=post.id)
         self.assertEqual(post.title, "first post")
         self.assertEqual(post.content, "hello moon")
+        self.assertEqual(post.tags, "test1, test2")
 
     def test_invalid_update_post_action(self):
         content_type = "application/json"

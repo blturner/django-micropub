@@ -260,6 +260,7 @@ class MicropubUpdateView(
 
         if self.object:
             model_fields = model_to_dict(self.object)
+            model_fields.update({"tags": self.get_tags()})
             kwargs.update({"data": model_fields})
 
         if self.request.content_type == "application/json":
