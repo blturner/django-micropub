@@ -4,6 +4,7 @@ import requests
 
 from urllib.parse import parse_qs
 
+from django import forms
 from django.core.exceptions import BadRequest
 from django.forms.models import model_to_dict
 from django.http import (
@@ -16,9 +17,11 @@ from django.views import View
 from django.views import generic
 from django.views.generic.edit import ModelFormMixin
 from django.views.decorators.csrf import csrf_exempt
+from django.urls import reverse
 from django.utils.decorators import method_decorator
 
 from .forms import DeleteForm
+from .models import Media
 
 
 logger = logging.getLogger(__name__)
@@ -139,10 +142,10 @@ class ConfigView(IndieAuthMixin, JSONResponseMixin, View):
     def get(self, request):
         syndicate_to = []
         context = {
-            # "media-endpoint": self.request.build_absolute_uri(
-            #     reverse("micropub-media-endpoint")
-            # )
-            "syndicate-to": syndicate_to
+            "media-endpoint": request.build_absolute_uri(
+                reverse("micropub-media-endpoint")
+            ),
+            "syndicate-to": syndicate_to,
         }
         return self.render_to_json_response(context)
 
@@ -424,3 +427,33 @@ class MicropubView(JsonableResponseMixin, ModelFormMixin, generic.View):
             view = MicropubUndeleteView.as_view(model=self.model)
 
         return view(request, *args, **kwargs)
+
+
+# class UploadForm(forms.Form):
+#     name = forms.TextField()
+#     file = forms.FileField()
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class MediaEndpoint(generic.CreateView):
+    model = Media
+    fields = "__all__"
+
+    def form_valid(self, form):
+        self.object = form.save()
+
+        resp = HttpResponse(status=201)
+
+        resp["Location"] = self.request.build_absolute_uri(self.object.file.url)
+
+        return resp
+
+    def form_invalid(self, form):
+        return JsonResponse(
+            {"error": "invalid_request", "error_description": form.errors}, status=400
+        )
+
+    # def get_form_kwargs(self):
+    #     kwargs = super().get_form_kwargs()
+
+    #     return kwargs
