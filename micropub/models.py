@@ -10,15 +10,6 @@ def upload_to(instance, filename):
     return "micropub/{0}.{1}".format(uuid.uuid4(), ext)
 
 
-class MicropubModel(SoftDeletableModel, models.Model):
-    class Meta:
-        abstract = True
-
-    @staticmethod
-    def from_url(url):
-        raise NotImplementedError
-
-
 class Media(models.Model):
     file = models.FileField(upload_to=upload_to)
 
@@ -27,3 +18,19 @@ class Media(models.Model):
 
     def __str__(self):
         return self.file.url
+
+
+class MicropubModel(SoftDeletableModel, models.Model):
+    media = models.ManyToManyField(
+        Media,
+        # related_name="%(app_label)s_%(class)s_related",
+        # related_query_name="%(app_label)s_%(class)ss",
+        blank=True,
+    )
+
+    class Meta:
+        abstract = True
+
+    @staticmethod
+    def from_url(url):
+        raise NotImplementedError

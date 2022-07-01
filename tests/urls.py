@@ -2,7 +2,7 @@ from django import forms
 from django.views import generic
 from django.urls import path
 
-from micropub.views import MicropubView
+from micropub.views import MicropubView, MediaEndpoint
 
 from tests.models import AdvancedPost, Post
 
@@ -23,11 +23,7 @@ class AdvancedPostForm(forms.ModelForm):
 
 
 urlpatterns = [
-    path(
-        "notes/<int:pk>/",
-        generic.DetailView.as_view(model=Post),
-        name="note-detail"
-    ),
+    path("notes/<int:pk>/", generic.DetailView.as_view(model=Post), name="note-detail"),
     path(
         "notes/<slug:slug>/",
         generic.DetailView.as_view(model=AdvancedPost),
@@ -42,5 +38,10 @@ urlpatterns = [
         "advanced-micropub",
         MicropubView.as_view(model=AdvancedPost, form_class=AdvancedPostForm),
         name="advanced-micropub",
+    ),
+    path(
+        "upload/",
+        MediaEndpoint.as_view(),
+        name="micropub-media-endpoint",
     ),
 ]

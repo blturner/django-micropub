@@ -3,10 +3,12 @@ import json
 
 from urllib.parse import urlparse
 
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
 from django.urls import reverse
 
 from tests.models import Post, AdvancedPost
+from micropub.models import Media
 
 
 class MicroPubUnauthorizedTestCase(TestCase):
@@ -100,17 +102,25 @@ class MicroPubAuthorizedTestCase(TestCase):
 
     def test_config_view(self):
         resp = self.client.get(self.endpoint, {"q": "config"})
+        url = reverse("micropub-media-endpoint")
 
-        expected = {"syndicate-to": []}
+        expected = {
+            "media-endpoint": "http://example.com" + url,
+            "syndicate-to": [],
+        }
 
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(json.loads(resp.content), expected)
 
     def test_config_view_syndicate_to(self):
         resp = self.client.get(self.endpoint, {"q": "syndicate-to"})
+        url = reverse("micropub-media-endpoint")
 
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(json.loads(resp.content), {"syndicate-to": []})
+        self.assertEqual(
+            json.loads(resp.content),
+            {"media-endpoint": "http://example.com" + url, "syndicate-to": []},
+        )
 
     def test_source_view_no_url(self):
         resp = self.client.get(self.endpoint, {"q": "source"})
@@ -136,6 +146,41 @@ class MicroPubAuthorizedTestCase(TestCase):
         )
         # self.assertEqual(entry.status, "published")
         # self.assertEqual(entry.post_type, "note")
+
+    def test_create_entry_with_photo(self):
+        file = SimpleUploadedFile("photo.jpg", b"file_content")
+        resp = self.client.post(reverse("micropub-media-endpoint"), {"file": file})
+        resp = self.client.post(
+            self.endpoint,
+            {
+                "h": "entry",
+                "content": "bananas",
+                "photo": resp.get("location"),
+            },
+        )
+
+        self.assertEqual(resp.status_code, 201)
+
+        post = Post.objects.get(content="bananas")
+
+        self.assertEqual(
+            urlparse(resp.get("location")).path,
+            reverse("note-detail", kwargs={"pk": post.pk}),
+        )
+        self.assertEqual(post.media.count(), 1)
+
+    def test_create_entry_with_invalid_photo(self):
+        resp = self.client.post(
+            self.endpoint,
+            {
+                "h": "entry",
+                "content": "bananas",
+                "photo": "http://example.com/uploads/this-does-not-exist.jpg",
+            },
+        )
+
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(Post.objects.count(), 0)
 
     def test_delete_entry(self):
         Post.objects.create(content="hello world")

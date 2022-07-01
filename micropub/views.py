@@ -5,6 +5,7 @@ import requests
 from urllib.parse import parse_qs
 
 from django import forms
+from django.conf import settings
 from django.core.exceptions import BadRequest
 from django.forms.models import model_to_dict
 from django.http import (
@@ -183,6 +184,22 @@ class SourceView(IndieAuthMixin, JSONResponseMixin, View):
 class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
     def form_valid(self, form):
         self.object = form.save()
+
+        if "photo" in form.data.keys():
+            try:
+                file = form.data.get("photo").split(settings.MEDIA_URL)[1]
+                media = Media.objects.get(file__exact=file)
+                self.object.media.add(media)
+                self.object.save()
+            except (Media.DoesNotExist, IndexError):
+                self.object.delete()
+                return JsonResponse(
+                    {
+                        "error": "invalid_request",
+                        "error_description": "Media does not exist",
+                    },
+                    status=400,
+                )
 
         resp = HttpResponse(status=201)
         resp["Location"] = self.request.build_absolute_uri(
