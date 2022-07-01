@@ -149,14 +149,39 @@ class MicroPubAuthorizedTestCase(TestCase):
 
     def test_create_entry_with_photo(self):
         file = SimpleUploadedFile("photo.jpg", b"file_content")
-        resp = self.client.post(reverse("micropub-media-endpoint"), {"file": file})
+        # resp = self.client.post(reverse("micropub-media-endpoint"), {"file": file})
         resp = self.client.post(
             self.endpoint,
             {
                 "h": "entry",
                 "content": "bananas",
-                "photo": resp.get("location"),
+                "file": file,
             },
+        )
+
+        self.assertEqual(resp.status_code, 201)
+
+        post = Post.objects.get(content="bananas")
+
+        self.assertEqual(
+            urlparse(resp.get("location")).path,
+            reverse("note-detail", kwargs={"pk": post.pk}),
+        )
+        self.assertEqual(post.media.count(), 1)
+
+    def test_create_entry_with_photo_json(self):
+        file = SimpleUploadedFile("photo.jpg", b"file_content")
+        resp = self.client.post(reverse("micropub-media-endpoint"), {"file": file})
+
+        data = {
+            "type": ["h-entry"],
+            "properties": {"content": ["bananas"], "photo": [resp.get("location")]},
+        }
+
+        resp = self.client.post(
+            self.endpoint,
+            data=data,
+            content_type="application/json",
         )
 
         self.assertEqual(resp.status_code, 201)

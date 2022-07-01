@@ -185,6 +185,13 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
     def form_valid(self, form):
         self.object = form.save()
 
+        if form.files:
+            for f in form.files:
+                file = form.files.get(f)
+                media = Media.objects.create(file=file)
+                self.object.media.add(media)
+            self.object.save()
+
         if "photo" in form.data.keys():
             try:
                 file = form.data.get("photo").split(settings.MEDIA_URL)[1]
