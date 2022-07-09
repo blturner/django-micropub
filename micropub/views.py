@@ -420,7 +420,9 @@ class MicropubView(JsonableResponseMixin, ModelFormMixin, generic.View):
             return HttpResponse("Unauthorized", status=401)
 
         if authorization and access_token:
-            return HttpResponseBadRequest()
+            logger.debug("has auth and token")
+            raise BadRequest("has auth and token")
+            # return HttpResponseBadRequest()
 
         if not authorization and access_token:
             authorization = f"Bearer {access_token}"
