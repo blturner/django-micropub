@@ -456,15 +456,24 @@ class MicropubView(JsonableResponseMixin, ModelFormMixin, generic.View):
         return view(request, *args, **kwargs)
 
 
-# class UploadForm(forms.Form):
-#     name = forms.TextField()
-#     file = forms.FileField()
-
-
 @method_decorator(csrf_exempt, name="dispatch")
 class MediaEndpoint(generic.CreateView):
     model = Media
     fields = "__all__"
+
+    def get(self, request, *args, **kwargs):
+        query = self.request.GET.get("q")
+        latest_upload = None
+
+        if query == "last":
+            try:
+                latest_upload = self.model.objects.latest("created")
+            except self.model.DoesNotExist:
+                logger.debug("No media was found.")
+                return JsonResponse({"url": None})
+            return JsonResponse({"url": latest_upload.file.url})
+
+        return HttpResponseBadRequest()
 
     def form_valid(self, form):
         self.object = form.save()
@@ -482,8 +491,3 @@ class MediaEndpoint(generic.CreateView):
             {"error": "invalid_request", "error_description": form.errors},
             status=400,
         )
-
-    # def get_form_kwargs(self):
-    #     kwargs = super().get_form_kwargs()
-
-    #     return kwargs
