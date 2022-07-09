@@ -421,7 +421,8 @@ class MicropubView(JsonableResponseMixin, ModelFormMixin, generic.View):
 
         if authorization and access_token:
             logger.debug("has auth and token")
-            raise BadRequest("has auth and token")
+            del self.request.META["HTTP_AUTHORIZATION"]
+            # raise BadRequest("has auth and token")
             # return HttpResponseBadRequest()
 
         if not authorization and access_token:
