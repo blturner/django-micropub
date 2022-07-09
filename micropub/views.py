@@ -475,7 +475,9 @@ class MediaEndpoint(generic.CreateView):
             except self.model.DoesNotExist:
                 logger.debug("No media was found.")
                 return JsonResponse({"url": None})
-            return JsonResponse({"url": latest_upload.file.url})
+            return JsonResponse(
+                {"url": request.build_absolute_uri(latest_upload.file.url)}
+            )
 
         return HttpResponseBadRequest()
 
