@@ -256,7 +256,8 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
 
                     return kwargs
             except json.decoder.JSONDecodeError:
-                raise BadRequest()
+                logger.debug("bad json")
+                raise BadRequest("Bad json")
 
         kwargs_data = kwargs.get("data", {})
         kwargs_data_copy = {}
