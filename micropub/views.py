@@ -236,7 +236,9 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
                         {
                             "data": {
                                 k: v[0] if len(v) == 1 else v
-                                for (k, v) in data.get("properties", {}).items()
+                                for (k, v) in data.get(
+                                    "properties", {}
+                                ).items()
                             }
                         }
                     )
@@ -392,7 +394,8 @@ class MicropubView(JsonableResponseMixin, ModelFormMixin, generic.View):
         query = self.request.GET.get("q")
 
         if not query:
-            return HttpResponseBadRequest()
+            logger.debug("bloop bleep")
+            raise BadRequest()
 
         if query == "config" or query == "syndicate-to":
             view = ConfigView.as_view()
@@ -468,13 +471,16 @@ class MediaEndpoint(generic.CreateView):
 
         resp = HttpResponse(status=201)
 
-        resp["Location"] = self.request.build_absolute_uri(self.object.file.url)
+        resp["Location"] = self.request.build_absolute_uri(
+            self.object.file.url
+        )
 
         return resp
 
     def form_invalid(self, form):
         return JsonResponse(
-            {"error": "invalid_request", "error_description": form.errors}, status=400
+            {"error": "invalid_request", "error_description": form.errors},
+            status=400,
         )
 
     # def get_form_kwargs(self):
