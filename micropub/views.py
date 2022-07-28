@@ -200,12 +200,11 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
                 self.object.save()
             except (Media.DoesNotExist, IndexError):
                 self.object.delete()
-                return JsonResponse(
+                raise BadRequest(
                     {
                         "error": "invalid_request",
                         "error_description": "Media does not exist",
                     },
-                    status=400,
                 )
 
         resp = HttpResponse(status=201)
@@ -236,9 +235,7 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
                         {
                             "data": {
                                 k: v[0] if len(v) == 1 else v
-                                for (k, v) in data.get(
-                                    "properties", {}
-                                ).items()
+                                for (k, v) in data.get("properties", {}).items()
                             }
                         }
                     )
@@ -486,9 +483,7 @@ class MediaEndpoint(generic.CreateView):
 
         resp = HttpResponse(status=201)
 
-        resp["Location"] = self.request.build_absolute_uri(
-            self.object.file.url
-        )
+        resp["Location"] = self.request.build_absolute_uri(self.object.file.url)
 
         return resp
 
