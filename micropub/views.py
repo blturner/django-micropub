@@ -185,9 +185,10 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
     def form_valid(self, form):
         self.object = form.save()
 
-        if form.files:
-            for f in form.files:
-                file = form.files.get(f)
+        photos = form.files.getlist("photo")
+
+        if len(photos) > 0:
+            for file in photos:
                 media = Media.objects.create(file=file)
                 self.object.media.add(media)
             self.object.save()
@@ -235,7 +236,9 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
                         {
                             "data": {
                                 k: v[0] if len(v) == 1 else v
-                                for (k, v) in data.get("properties", {}).items()
+                                for (k, v) in data.get(
+                                    "properties", {}
+                                ).items()
                             }
                         }
                     )
@@ -483,7 +486,9 @@ class MediaEndpoint(generic.CreateView):
 
         resp = HttpResponse(status=201)
 
-        resp["Location"] = self.request.build_absolute_uri(self.object.file.url)
+        resp["Location"] = self.request.build_absolute_uri(
+            self.object.file.url
+        )
 
         return resp
 

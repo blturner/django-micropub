@@ -26,7 +26,9 @@ class MicroPubUnauthorizedTestCase(TestCase):
         self.assertEqual(resp.status_code, 401)
 
     def test_unauthorized_post(self):
-        resp = self.client.post(self.endpoint, {"h": "entry", "content": "bananas"})
+        resp = self.client.post(
+            self.endpoint, {"h": "entry", "content": "bananas"}
+        )
 
         self.assertEqual(resp.status_code, 401)
 
@@ -155,7 +157,7 @@ class MicroPubAuthorizedTestCase(TestCase):
             {
                 "h": "entry",
                 "content": "bananas",
-                "file": file,
+                "photo": file,
             },
         )
 
@@ -169,13 +171,41 @@ class MicroPubAuthorizedTestCase(TestCase):
         )
         self.assertEqual(post.media.count(), 1)
 
+    def test_create_entry_with_multiple_photos(self):
+        file = SimpleUploadedFile("photo.jpg", b"file_content")
+        file2 = SimpleUploadedFile("photo2.jpg", b"file_content")
+        # resp = self.client.post(reverse("micropub-media-endpoint"), {"file": file})
+        resp = self.client.post(
+            self.endpoint,
+            {
+                "h": "entry",
+                "content": "bananas",
+                "photo": (file, file2),
+            },
+        )
+
+        self.assertEqual(resp.status_code, 201)
+
+        post = Post.objects.get(content="bananas")
+
+        self.assertEqual(
+            urlparse(resp.get("location")).path,
+            reverse("note-detail", kwargs={"pk": post.pk}),
+        )
+        self.assertEqual(post.media.count(), 2)
+
     def test_create_entry_with_photo_json(self):
         file = SimpleUploadedFile("photo.jpg", b"file_content")
-        resp = self.client.post(reverse("micropub-media-endpoint"), {"file": file})
+        resp = self.client.post(
+            reverse("micropub-media-endpoint"), {"file": file}
+        )
 
         data = {
             "type": ["h-entry"],
-            "properties": {"content": ["bananas"], "photo": [resp.get("location")]},
+            "properties": {
+                "content": ["bananas"],
+                "photo": [resp.get("location")],
+            },
         }
 
         resp = self.client.post(
