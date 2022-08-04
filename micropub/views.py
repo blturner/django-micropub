@@ -415,6 +415,7 @@ class MicropubView(JsonableResponseMixin, ModelFormMixin, generic.View):
         return view(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
+        logger.debug(request.body)
         action = "create"
         form = self.get_form()
 
