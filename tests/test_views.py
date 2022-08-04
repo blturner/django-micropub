@@ -1,8 +1,10 @@
 import httpretty
 import json
+import shutil
 
 from urllib.parse import urlparse
 
+from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -14,6 +16,12 @@ from micropub.models import Media
 class MicroPubUnauthorizedTestCase(TestCase):
     def setUp(self):
         self.endpoint = reverse("micropub")
+
+    def tearDown(self):
+        try:
+            shutil.rmtree(settings.MEDIA_ROOT)
+        except OSError:
+            pass
 
     def test_unauthorized_config(self):
         resp = self.client.get(self.endpoint, {"q": "config"})
