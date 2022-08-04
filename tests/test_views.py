@@ -208,11 +208,46 @@ class MicroPubAuthorizedTestCase(TestCase):
             reverse("micropub-media-endpoint"), {"file": file}
         )
 
+        content = "photo post with json"
+        data = {
+            "type": ["h-entry"],
+            "properties": {
+                "content": [content],
+                "photo": [resp.get("location")],
+            },
+        }
+
+        resp = self.client.post(
+            self.endpoint,
+            data=data,
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 201)
+
+        post = Post.objects.get(content=content)
+
+        self.assertEqual(
+            urlparse(resp.get("location")).path,
+            reverse("note-detail", kwargs={"pk": post.pk}),
+        )
+        self.assertEqual(post.media.count(), 1)
+
+    def test_create_entry_with_multiple_photos_json(self):
+        file = SimpleUploadedFile("photo.jpg", b"file_content")
+        file2 = SimpleUploadedFile("photo2.jpg", b"file_content")
+        resp = self.client.post(
+            reverse("micropub-media-endpoint"), {"file": file}
+        )
+        resp2 = self.client.post(
+            reverse("micropub-media-endpoint"), {"file": file2}
+        )
+
         data = {
             "type": ["h-entry"],
             "properties": {
                 "content": ["bananas"],
-                "photo": [resp.get("location")],
+                "photo": [resp.get("location"), resp2.get("location")],
             },
         }
 
@@ -230,7 +265,7 @@ class MicroPubAuthorizedTestCase(TestCase):
             urlparse(resp.get("location")).path,
             reverse("note-detail", kwargs={"pk": post.pk}),
         )
-        self.assertEqual(post.media.count(), 1)
+        self.assertEqual(post.media.count(), 2)
 
     def test_create_entry_with_invalid_photo(self):
         resp = self.client.post(
@@ -244,6 +279,29 @@ class MicroPubAuthorizedTestCase(TestCase):
 
         self.assertEqual(resp.status_code, 400)
         self.assertEqual(Post.objects.count(), 0)
+
+    def test_create_entry_with_malformed_photo(self):
+        file = SimpleUploadedFile("photo.jpg", b"file_content")
+        resp = self.client.post(
+            reverse("micropub-media-endpoint"), {"file": file}
+        )
+
+        data = {
+            "type": ["h-entry"],
+            "properties": {
+                "content": ["bananas"],
+                "photo": resp.get("location"),
+            },
+        }
+
+        resp = self.client.post(
+            self.endpoint,
+            data=data,
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(Post.objects.count(), 1)
 
     def test_delete_entry(self):
         Post.objects.create(content="hello world")

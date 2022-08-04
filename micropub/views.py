@@ -194,19 +194,27 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
             self.object.save()
 
         if "photo" in form.data.keys():
-            try:
-                file = form.data.get("photo").split(settings.MEDIA_URL)[1]
-                media = Media.objects.get(file__exact=file)
-                self.object.media.add(media)
-                self.object.save()
-            except (Media.DoesNotExist, IndexError):
-                self.object.delete()
-                raise BadRequest(
-                    {
-                        "error": "invalid_request",
-                        "error_description": "Media does not exist",
-                    },
-                )
+            photos = form.data.get("photo")
+
+            # this is fixing an issue in converting the data key from properties
+            # below. lists of length 1 are converted to strings
+            if not isinstance(photos, list):
+                photos = [photos]
+
+            for photo in photos:
+                try:
+                    file = photo.split(settings.MEDIA_URL)[1]
+                    media = Media.objects.get(file__exact=file)
+                    self.object.media.add(media)
+                    self.object.save()
+                except (Media.DoesNotExist, IndexError):
+                    self.object.delete()
+                    raise BadRequest(
+                        {
+                            "error": "invalid_request",
+                            "error_description": "Media does not exist",
+                        },
+                    )
 
         resp = HttpResponse(status=201)
         resp["Location"] = self.request.build_absolute_uri(
