@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(
-    name="micropub",
+    name="django-micropub",
     version="0.1",
     description="A micropub server.",
     url="http://github.com/blturner/django-micropub",
