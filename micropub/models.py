@@ -20,7 +20,8 @@ class Media(TimeStampedModel):
         return self.file.url
 
 
-class MicropubModel(SoftDeletableModel, models.Model):
+class MicropubModel(SoftDeletableModel, TimeStampedModel, models.Model):
+    # need to move name, content, tags, url to this model
     media = models.ManyToManyField(
         Media,
         # related_name="%(app_label)s_%(class)s_related",

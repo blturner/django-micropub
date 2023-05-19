@@ -412,7 +412,7 @@ class MicroPubAuthorizedTestCase(TestCase):
             self.advanced,
             {
                 "h": "entry",
-                "title": "hello world",
+                "name": "hello world",
                 "content": "post body",
                 "slug": "hello-world",
             },
@@ -801,3 +801,21 @@ class MicroPubAuthorizedTestCase(TestCase):
             # HTTP_ACCEPT=content_type,
         )
         self.assertEqual(resp.status_code, 400)
+
+    def test_create_liked_post(self):
+        resp = self.client.post(
+            self.advanced,
+            {
+                "h": "entry",
+                "like-of": "https://example.com",
+            },
+        )
+
+        self.assertEqual(resp.status_code, 201)
+
+        # post = AdvancedPost.objects.get(title="hello world")
+
+        # self.assertEqual(
+        #     urlparse(resp.get("location")).path,
+        #     reverse("advanced-note-detail", kwargs={"slug": "hello-world"}),
+        # )

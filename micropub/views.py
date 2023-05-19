@@ -6,7 +6,7 @@ from urllib.parse import parse_qs
 
 from django import forms
 from django.conf import settings
-from django.core.exceptions import BadRequest
+
 from django.forms.models import model_to_dict
 from django.http import (
     HttpResponse,
@@ -35,6 +35,10 @@ KEY_MAPPING = [
     ("status", "post-status"),
     ("reply_to", "in-reply-to"),
 ]
+
+
+class BadRequest(Exception):
+    pass
 
 
 class JsonResponseForbidden(JsonResponse, HttpResponseForbidden):
@@ -113,6 +117,7 @@ def verify_authorization(request, authorization):
 
 class IndieAuthMixin(object):
     def dispatch(self, request, *args, **kwargs):
+        logger.debug(f"request: {request.body, args, kwargs}")
         authorization = request.META.get("HTTP_AUTHORIZATION")
 
         if not authorization:
@@ -185,12 +190,23 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
     def form_valid(self, form):
         self.object = form.save()
 
-        photos = form.files.getlist("photo")
+        try:
+            photos = form.files.getlist("photo")
+        except AttributeError:
+            photos = []
 
         if len(photos) > 0:
             for file in photos:
                 media = Media.objects.create(file=file)
                 self.object.media.add(media)
+            self.object.save()
+
+        post_types = settings.MICROPUB_POST_TYPES
+        pt_keys = [k for k in form.data.keys() if k in post_types.keys()]
+
+        for key in pt_keys:
+            self.object.post_type = post_types[key]
+            self.object.url = form.data.get(key)
             self.object.save()
 
         if "photo" in form.data.keys():
@@ -206,7 +222,6 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
                     file = photo.split(settings.MEDIA_URL)[1]
                     media = Media.objects.get(file__exact=file)
                     self.object.media.add(media)
-                    self.object.save()
                 except (Media.DoesNotExist, IndexError):
                     self.object.delete()
                     raise BadRequest(
@@ -215,6 +230,8 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
                             "error_description": "Media does not exist",
                         },
                     )
+            if photos:
+                self.object.save()
 
         resp = HttpResponse(status=201)
         resp["Location"] = self.request.build_absolute_uri(
