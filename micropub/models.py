@@ -1,7 +1,14 @@
 import uuid
 
 from django.db import models
+from django.contrib.contenttypes.fields import (
+    GenericForeignKey,
+    GenericRelation,
+)
+from django.contrib.contenttypes.models import ContentType
+from django.forms.fields import MultipleChoiceField
 
+from model_utils import Choices
 from model_utils.models import SoftDeletableModel, TimeStampedModel
 
 
@@ -28,6 +35,19 @@ class MicropubModel(SoftDeletableModel, TimeStampedModel, models.Model):
         # related_query_name="%(app_label)s_%(class)ss",
         blank=True,
     )
+    rsvp = models.CharField(
+        blank=True,
+        max_length=255,
+        choices=Choices(
+            ("yes", "Yes"),
+            ("no", "No"),
+            ("maybe", "Maybe"),
+            ("interested", "Interested"),
+        ),
+    )
+    syndicate_to = models.CharField(
+        max_length=255,
+    )
 
     class Meta:
         abstract = True
@@ -35,3 +55,16 @@ class MicropubModel(SoftDeletableModel, TimeStampedModel, models.Model):
     @staticmethod
     def from_url(url):
         raise NotImplementedError
+
+    def syndicate(self):
+        """
+        This method should parse the rendered HTML using mf2py and send a
+        micropub/webmention request to the syndication endpoint.
+        """
+
+
+class Syndication(TimeStampedModel, models.Model):
+    url = models.URLField(blank=True, max_length=2000)
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    content_object = GenericForeignKey("content_type", "object_id")

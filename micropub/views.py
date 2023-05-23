@@ -146,7 +146,7 @@ class MicropubObjectMixin(object):
 
 class ConfigView(IndieAuthMixin, JSONResponseMixin, View):
     def get(self, request):
-        syndicate_to = []
+        syndicate_to = getattr(settings, "MICROPUB_SYNDICATION_TARGETS", [])
         context = {
             "media-endpoint": request.build_absolute_uri(
                 reverse("micropub-media-endpoint")
@@ -205,8 +205,13 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
         pt_keys = [k for k in form.data.keys() if k in post_types.keys()]
 
         for key in pt_keys:
-            self.object.post_type = post_types[key]
-            self.object.url = form.data.get(key)
+            self.object.post_type = post_types[key][0]
+
+            if self.object.post_type == "rsvp":
+                self.object.rsvp = form.data.get(key)
+            else:
+                self.object.url = form.data.get(key)
+
             self.object.save()
 
         if "photo" in form.data.keys():
