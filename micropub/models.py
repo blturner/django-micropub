@@ -10,6 +10,7 @@ from django.forms.fields import MultipleChoiceField
 
 from model_utils import Choices
 from model_utils.models import SoftDeletableModel, TimeStampedModel
+from multiselectfield import MultiSelectField
 
 
 def upload_to(instance, filename):
@@ -45,7 +46,11 @@ class MicropubModel(SoftDeletableModel, TimeStampedModel, models.Model):
             ("interested", "Interested"),
         ),
     )
-    syndicate_to = models.CharField(
+    syndicate_to = MultiSelectField(
+        choices=Choices(
+            (0, "Internet Archive"),
+            (1, "Mastodon"),
+        ),
         max_length=255,
     )
 
