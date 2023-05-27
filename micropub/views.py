@@ -6,7 +6,7 @@ from urllib.parse import parse_qs
 
 from django import forms
 from django.conf import settings
-
+from django.core.exceptions import ValidationError
 from django.forms.models import model_to_dict
 from django.http import (
     HttpResponse,
@@ -22,6 +22,7 @@ from django.urls import reverse
 from django.utils.decorators import method_decorator
 
 from .forms import DeleteForm
+from . import forms as micropub_forms
 from .models import Media
 
 
@@ -187,8 +188,34 @@ class SourceView(IndieAuthMixin, JSONResponseMixin, View):
 
 
 class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
+    def get_form_class(self):
+        if self.request.content_type == "application/json":
+            body = json.loads(self.request.body)
+            properties = body.get("properties")
+
+            if properties.get("like-of"):
+                self.form_class = micropub_forms.FavoriteForm
+
+            if properties.get("in-reply-to"):
+                self.form_class = micropub_forms.ReplyForm
+
+            if properties.get("repost-of"):
+                self.form_class = micropub_forms.RepostForm
+
+            return forms.models.modelform_factory(
+                self.model,
+                form=self.form_class,
+                fields=self.form_class.base_fields.keys(),
+            )
+        else:
+            return super().get_form_class()
+
     def form_valid(self, form):
         self.object = form.save()
+
+        if "name" and "content" in form.fields.keys():
+            self.object.post_type = "article"
+            self.object.save()
 
         try:
             photos = form.files.getlist("photo")
@@ -209,8 +236,10 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
 
             if self.object.post_type == "rsvp":
                 self.object.rsvp = form.data.get(key)
-            else:
-                self.object.url = form.data.get(key)
+            # else:
+            # setting the object.url here is skipping over URL validation
+            # in the form class
+            # self.object.url = form.data.get(key)
 
             self.object.save()
 
@@ -253,6 +282,8 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
 
+        url_keys = ["bookmark-of", "repost-of", "like-of", "in-reply-to"]
+
         if self.request.content_type == "application/json":
             try:
                 data = json.loads(self.request.body)
@@ -283,6 +314,36 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
                             )
                     except AttributeError:
                         pass
+
+                    for k in url_keys:
+                        if k in kwargs.get("data").keys():
+                            kwargs.get("data").update(
+                                {"url": kwargs.get("data").pop(k)}
+                            )
+
+                    # if "rsvp" in kwargs.get("data").keys():
+                    #     kwargs.get("data").update({
+                    #         ""
+                    #         })
+
+                    if "post-status" in kwargs.get("data").keys():
+                        kwargs.get("data").update(
+                            {"status": kwargs.get("data").pop("post-status")}
+                        )
+
+                    if "mp-syndicate-to" in kwargs.get("data").keys():
+                        kwargs.get("data").update(
+                            {
+                                "syndicate_to": kwargs.get("data").pop(
+                                    "mp-syndicate-to"
+                                )
+                            }
+                        )
+
+                    print(self.form_class)
+
+                    # bookmark-of, reply-to, like-of need to be converted to
+                    # the `url` key in kwargs
 
                     return kwargs
             except json.decoder.JSONDecodeError:
@@ -420,6 +481,7 @@ class MicropubUndeleteView(MicropubDeleteView):
 @method_decorator(csrf_exempt, name="dispatch")
 class MicropubView(JsonableResponseMixin, ModelFormMixin, generic.View):
     update_view = MicropubUpdateView
+    fields = "__all__"
 
     def get(self, request, *args, **kwargs):
         query = self.request.GET.get("q")
@@ -452,8 +514,8 @@ class MicropubView(JsonableResponseMixin, ModelFormMixin, generic.View):
 
         if authorization and access_token:
             logger.debug("has auth and token")
-            del self.request.META["HTTP_AUTHORIZATION"]
-            # raise BadRequest("has auth and token")
+            # del self.request.META["HTTP_AUTHORIZATION"]
+            raise BadRequest("has auth and token")
             # return HttpResponseBadRequest()
 
         if not authorization and access_token:
@@ -472,6 +534,7 @@ class MicropubView(JsonableResponseMixin, ModelFormMixin, generic.View):
                 {"error": "insufficient_scope", "scope": action}
             )
 
+        # this branch may not be in the spec
         if action == "create":
             view = MicropubCreateView.as_view(
                 model=self.model, form_class=self.form_class

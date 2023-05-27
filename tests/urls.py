@@ -1,4 +1,5 @@
 from django import forms
+from django.core.exceptions import ValidationError
 from django.views import generic
 from django.urls import path
 
@@ -9,6 +10,7 @@ from tests.models import AdvancedPost, Post
 
 class PostForm(forms.ModelForm):
     title = forms.CharField(required=False)
+    content = forms.CharField(required=False)
     tags = forms.CharField(required=False)
 
     class Meta:
@@ -23,7 +25,11 @@ class AdvancedPostForm(forms.ModelForm):
 
 
 urlpatterns = [
-    path("notes/<int:pk>/", generic.DetailView.as_view(model=Post), name="note-detail"),
+    path(
+        "notes/<int:pk>/",
+        generic.DetailView.as_view(model=Post),
+        name="note-detail",
+    ),
     path(
         "notes/<slug:slug>/",
         generic.DetailView.as_view(model=AdvancedPost),

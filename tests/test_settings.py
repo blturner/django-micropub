@@ -17,7 +17,9 @@ INSTALLED_APPS = (
     "tests",
 )
 
-DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}}
+DATABASES = {
+    "default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}
+}
 ROOT_URLCONF = "tests.urls"
 SECRET_KEY = get_random_string(12)
 ALLOWED_HOSTS = ["example.com"]
@@ -50,3 +52,8 @@ TEMPLATES = [
 MEDIA_ROOT = os.path.join(BASE_DIR, "uploads")
 
 MEDIA_URL = "uploads/"
+
+MICROPUB_POST_TYPES = {
+    "note": ("note", "notes"),
+    "like-of": ("like", "likes"),
+}

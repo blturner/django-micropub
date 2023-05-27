@@ -803,17 +803,21 @@ class MicroPubAuthorizedTestCase(TestCase):
         self.assertEqual(resp.status_code, 400)
 
     def test_create_liked_post(self):
+        url = "https://example.com"
+
         resp = self.client.post(
-            self.advanced,
+            self.endpoint,
             {
                 "h": "entry",
-                "like-of": "https://example.com",
+                "like-of": url,
             },
         )
 
         self.assertEqual(resp.status_code, 201)
 
-        # post = AdvancedPost.objects.get(title="hello world")
+        post = Post.objects.get(url=url)
+
+        self.assertEqual(len(post), 1)
 
         # self.assertEqual(
         #     urlparse(resp.get("location")).path,

@@ -47,12 +47,14 @@ class MicropubModel(SoftDeletableModel, TimeStampedModel, models.Model):
         ),
     )
     syndicate_to = MultiSelectField(
+        blank=True,
         choices=Choices(
             (0, "Internet Archive"),
             (1, "Mastodon"),
         ),
         max_length=255,
     )
+    url = models.URLField(blank=True, max_length=2000)
 
     class Meta:
         abstract = True
@@ -61,11 +63,20 @@ class MicropubModel(SoftDeletableModel, TimeStampedModel, models.Model):
     def from_url(url):
         raise NotImplementedError
 
-    def syndicate(self):
+    def syndicate(self, resend=False):
         """
         This method should parse the rendered HTML using mf2py and send a
         micropub/webmention request to the syndication endpoint.
         """
+        for syndicate in self.syndicate_to:
+            existing_syndications = Syndicate.objects.filter(url=self.url)
+
+            if existing_syndications and not resend:
+                return
+
+            send_webmention(
+                syndicate.endpoint, self.get_absolute_url(), self.url
+            )
 
 
 class Syndication(TimeStampedModel, models.Model):
