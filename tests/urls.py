@@ -9,6 +9,7 @@ from tests.models import AdvancedPost, Post
 
 
 class PostForm(forms.ModelForm):
+    h = forms.ChoiceField(choices=[("entry", "entry")])
     title = forms.CharField(required=False)
     content = forms.CharField(required=False)
     tags = forms.CharField(required=False)
@@ -16,6 +17,17 @@ class PostForm(forms.ModelForm):
     class Meta:
         model = Post
         fields = "__all__"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        # action = cleaned_data.get("action")
+        content = cleaned_data.get("content")
+        url = cleaned_data.get("url")
+
+        if not url and not content:
+            raise ValidationError(
+                "content, reply-to, like-of, bookmark-of, or repost-of are required"
+            )
 
 
 class AdvancedPostForm(forms.ModelForm):

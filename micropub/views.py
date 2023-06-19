@@ -6,7 +6,11 @@ from urllib.parse import parse_qs
 
 from django import forms
 from django.conf import settings
-from django.core.exceptions import ValidationError
+from django.core.exceptions import (
+    ObjectDoesNotExist,
+    SuspiciousOperation,
+    ValidationError,
+)
 from django.forms.models import model_to_dict
 from django.http import (
     HttpResponse,
@@ -39,10 +43,16 @@ KEY_MAPPING = [
 
 
 class BadRequest(Exception):
+    """The request is malformed and cannot be processed."""
+
     pass
 
 
 class JsonResponseForbidden(JsonResponse, HttpResponseForbidden):
+    pass
+
+
+class JsonResponseBadRequest(JsonResponse, HttpResponseBadRequest):
     pass
 
 
@@ -104,8 +114,8 @@ def verify_authorization(request, authorization):
         },
     )
     content = parse_qs(resp.content.decode("utf-8"))
-    if content.get("error"):
-        return HttpResponseForbidden(content.get("error_description"))
+    # if content.get("error"):
+    #     return HttpResponseForbidden(content.get("error_description"))
 
     scope = content.get("scope")
 
@@ -120,11 +130,27 @@ class IndieAuthMixin(object):
     def dispatch(self, request, *args, **kwargs):
         logger.debug(f"request: {request.body, args, kwargs}")
         authorization = request.META.get("HTTP_AUTHORIZATION")
+        form = micropub_forms.AuthForm(data=self.request.POST)
+        access_token = form.data.get("access_token")
+
+        if not authorization and not access_token:
+            return HttpResponse("Unauthorized", status=401)
+
+        if authorization and access_token:
+            logger.debug("has auth and token")
+            # del self.request.META["HTTP_AUTHORIZATION"]
+            raise SuspiciousOperation("has auth and token")
+            # return HttpResponseBadRequest()
+
+        if not authorization and access_token:
+            authorization = f"Bearer {access_token}"
 
         if not authorization:
             return HttpResponse("Unauthorized", status=401)
 
-        verify_authorization(request, authorization)
+        content = verify_authorization(request, authorization)
+        if content.get("error"):
+            return HttpResponseForbidden(content.get("error_description"))
 
         return super().dispatch(request, *args, **kwargs)
 
@@ -136,12 +162,34 @@ class MicropubObjectMixin(object):
         if self.request.content_type == "application/json":
             try:
                 data = json.loads(self.request.body)
-                obj = self.model.from_url(data["url"])
+                url = data.get("url")
             except (json.decoder.JSONDecodeError, KeyError):
-                raise BadRequest()
+                raise SuspiciousOperation()
         else:
-            if "url" in self.request.POST.keys():
-                obj = self.model.from_url(self.request.POST["url"])
+            url = self.request.POST["url"]
+
+        try:
+            obj = self.model.from_url(url)
+        except ObjectDoesNotExist:
+            pass
+
+        # if self.request.content_type == "application/json":
+        #     try:
+        #         data = json.loads(self.request.body)
+        #         obj = self.model.from_url(data["url"])
+        #     except (
+        #         ObjectDoesNotExist,
+        #         json.decoder.JSONDecodeError,
+        #         KeyError,
+        #     ):
+        #         raise SuspiciousOperation()
+        # else:
+        #     if "url" in self.request.POST.keys():
+        #         try:
+        #             obj = self.model.from_url(self.request.POST["url"])
+        #         except ObjectDoesNotExist:
+        #             raise SuspiciousOperation()
+
         return obj
 
 
@@ -187,11 +235,19 @@ class SourceView(IndieAuthMixin, JSONResponseMixin, View):
         return self.render_to_json_response(context)
 
 
-class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
+class MicropubMixin(object):
+    # def get_form(self, form_class=None):
+    #     import ipdb
+
+    #     ipdb.set_trace()
+
     def get_form_class(self):
         if self.request.content_type == "application/json":
             body = json.loads(self.request.body)
-            properties = body.get("properties")
+            properties = body.get("properties", {})
+
+            # if "action" in body.keys():
+            #     self.form_class = micropub_forms.UpdateForm
 
             if properties.get("like-of"):
                 self.form_class = micropub_forms.FavoriteForm
@@ -202,6 +258,14 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
             if properties.get("repost-of"):
                 self.form_class = micropub_forms.RepostForm
 
+        # import ipdb
+
+        # ipdb.set_trace()
+
+        if self.model and self.form_class:
+            # import ipdb
+
+            # ipdb.set_trace()
             return forms.models.modelform_factory(
                 self.model,
                 form=self.form_class,
@@ -210,6 +274,10 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
         else:
             return super().get_form_class()
 
+
+class MicropubCreateView(
+    MicropubMixin, JsonableResponseMixin, generic.CreateView
+):
     def form_valid(self, form):
         self.object = form.save()
 
@@ -258,7 +326,7 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
                     self.object.media.add(media)
                 except (Media.DoesNotExist, IndexError):
                     self.object.delete()
-                    raise BadRequest(
+                    raise SuspiciousOperation(
                         {
                             "error": "invalid_request",
                             "error_description": "Media does not exist",
@@ -340,15 +408,19 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
                             }
                         )
 
-                    print(self.form_class)
+                # bookmark-of, reply-to, like-of need to be converted to
+                # the `url` key in kwargs
 
-                    # bookmark-of, reply-to, like-of need to be converted to
-                    # the `url` key in kwargs
+                if "type" in data.keys():
+                    entry_type = data.get("type").pop()
+                    kwargs.get("data", {}).update(
+                        {"h": entry_type.replace("h-", "")}
+                    )
 
-                    return kwargs
+                return kwargs
             except json.decoder.JSONDecodeError:
                 logger.debug("bad json")
-                raise BadRequest("Bad json")
+                raise SuspiciousOperation("Bad json")
 
         kwargs_data = kwargs.get("data", {})
         kwargs_data_copy = {}
@@ -365,16 +437,32 @@ class MicropubCreateView(JsonableResponseMixin, generic.CreateView):
             data["tags"] = ", ".join(data.pop("category"))
             kwargs.update({"data": data})
 
+        if "like-of" in kwargs.get("data").keys():
+            kwargs.get("data").update(
+                {"url": kwargs.get("data").get("like-of")}
+            )
+
         return kwargs
 
 
 class MicropubUpdateView(
-    MicropubObjectMixin, JsonableResponseMixin, generic.UpdateView
+    MicropubObjectMixin,
+    MicropubMixin,
+    JsonableResponseMixin,
+    generic.UpdateView,
 ):
+    form_class = micropub_forms.UpdateForm
+
     def form_valid(self, form):
         self.object = form.save()
 
         return HttpResponse(status=204)
+
+    def form_invalid(self, form):
+        import ipdb
+
+        ipdb.set_trace()
+        return super().form_invalid(form)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -389,8 +477,15 @@ class MicropubUpdateView(
             data_keys = data.keys()
             action = data.get("action")
 
+            kwargs_data = kwargs.get("data")
+
+            # This key is not required for micropub updates, but
+            # the model form requires it for the create action so
+            # it's manually added here on update.
+            kwargs_data.update({"h": "entry"})
+
             if action == "update":
-                kwargs_data = kwargs.get("data")
+                # kwargs_data = kwargs.get("data")
 
                 if "replace" in data_keys:
                     replace = data.get("replace")
@@ -398,11 +493,11 @@ class MicropubUpdateView(
                     try:
                         for k, v in replace.items():
                             if not isinstance(v, list):
-                                raise BadRequest()
+                                raise SuspiciousOperation()
                             kwargs_data.update({k: v[0]})
                             kwargs.update({"data": kwargs_data})
                     except AttributeError:
-                        raise BadRequest()
+                        raise SuspiciousOperation()
 
                 if "add" in data_keys:
                     for k in data.get("add").keys():
@@ -447,10 +542,28 @@ class MicropubUpdateView(
         return self.object.tags
 
 
-class MicropubDeleteView(MicropubObjectMixin, generic.DeleteView):
+class MicropubDeleteView(
+    MicropubObjectMixin, JsonableResponseMixin, generic.DeleteView
+):
     form_class = DeleteForm
 
+    def get_object(self, url=None):
+        return self.model.from_url(url=url)
+
     def form_valid(self, form):
+        url = form.data.get("url")
+
+        try:
+            self.object = self.get_object(url=url)
+        except ObjectDoesNotExist:
+            msg = "The post with the requested URL was not found"
+            return JsonResponseBadRequest(
+                {
+                    "error": "invalid_request",
+                    "error_description": msg,
+                },
+            )
+
         self.object.delete()
         return HttpResponse(status=204)
 
@@ -469,26 +582,49 @@ class MicropubDeleteView(MicropubObjectMixin, generic.DeleteView):
 
         return kwargs
 
+    def post(self, request, *args, **kwargs):
+        # overridden to avoid default behavior which calls self.get_object
+        form = self.get_form()
+        if form.is_valid():
+            return self.form_valid(form)
+        else:
+            return self.form_invalid(form)
+
 
 class MicropubUndeleteView(MicropubDeleteView):
     def form_valid(self, form):
-        if self.object:
-            self.object.is_removed = False
-            self.object.save()
+        url = form.data.get("url")
+
+        try:
+            self.object = self.get_object(url=url)
+        except ObjectDoesNotExist:
+            msg = "The post with the requested URL was not found"
+            return JsonResponseBadRequest(
+                {
+                    "error": "invalid_request",
+                    "error_description": msg,
+                },
+            )
+
+        self.object.is_removed = False
+        self.object.save()
         return HttpResponse(status=204)
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-class MicropubView(JsonableResponseMixin, ModelFormMixin, generic.View):
+class MicropubView(
+    IndieAuthMixin, JsonableResponseMixin, ModelFormMixin, generic.View
+):
+    form_class = micropub_forms.AuthForm
     update_view = MicropubUpdateView
-    fields = "__all__"
+    # fields = "__all__"
 
     def get(self, request, *args, **kwargs):
         query = self.request.GET.get("q")
 
         if not query:
             logger.debug("bloop bleep")
-            raise BadRequest()
+            raise SuspiciousOperation()
 
         if query == "config" or query == "syndicate-to":
             view = ConfigView.as_view()
@@ -501,43 +637,46 @@ class MicropubView(JsonableResponseMixin, ModelFormMixin, generic.View):
     def post(self, request, *args, **kwargs):
         logger.debug(request.body)
         action = "create"
-        form = self.get_form()
-
-        if "action" in form.data.keys():
-            action = form.data.get("action")
-
-        authorization = self.request.META.get("HTTP_AUTHORIZATION")
-        access_token = form.data.get("access_token")
-
-        if not authorization and not access_token:
-            return HttpResponse("Unauthorized", status=401)
-
-        if authorization and access_token:
-            logger.debug("has auth and token")
-            # del self.request.META["HTTP_AUTHORIZATION"]
-            raise BadRequest("has auth and token")
-            # return HttpResponseBadRequest()
-
-        if not authorization and access_token:
-            authorization = f"Bearer {access_token}"
-
-        content = verify_authorization(self.request, authorization)
-        scopes = content.get("scope", [])
-        if len(scopes) > 0:
-            scopes = scopes[0].split(" ")
 
         if request.content_type == "application/json":
             action = json.loads(request.body).get("action", action)
+        else:
+            action = request.POST.get("action", action)
+
+        # maybe this validation should be handled with a form?
+        if action != "create":
+            try:
+                url = json.loads(request.body).get("url")
+            except json.decoder.JSONDecodeError:
+                url = request.POST.get("url")
+
+            if not url:
+                return JsonResponseBadRequest(
+                    {
+                        "error": "invalid_request",
+                        "error_description": {
+                            "url": ["This field is required."]
+                        },
+                    }
+                )
+
+        # if not h=entry this is not a create request
+
+        view = MicropubCreateView.as_view(
+            model=self.model, form_class=self.form_class
+        )
+
+        scopes = self.request.session.get("scope")
+
+        if len(scopes) > 0:
+            scopes = scopes[0].split(" ")
+
+        # if no action, type, or properties this is an invalid request
+        # a create post will have a type of h-entry with a properties key
 
         if action not in scopes:
             return JsonResponseForbidden(
                 {"error": "insufficient_scope", "scope": action}
-            )
-
-        # this branch may not be in the spec
-        if action == "create":
-            view = MicropubCreateView.as_view(
-                model=self.model, form_class=self.form_class
             )
 
         if action == "update":

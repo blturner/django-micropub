@@ -357,6 +357,7 @@ class MicroPubAuthorizedTestCase(TestCase):
         self.assertEqual(resp.status_code, 400)
 
     def test_delete_entry_missing_action(self):
+        # missing action should be an error
         resp = self.client.post(
             self.endpoint,
             {"url": "http://example.com/notes/1/"},
@@ -365,12 +366,54 @@ class MicroPubAuthorizedTestCase(TestCase):
         self.assertEqual(resp.status_code, 400)
 
         # if the action key is omitted, it is assumed this is a request to
-        # create a resource, so the error will be for a missing content key.
+        # create a resource, so the error will be for a missing h key.
         self.assertEqual(
             json.loads(resp.content),
             {
                 "error": "invalid_request",
-                "error_description": {"content": ["This field is required."]},
+                "error_description": {"h": ["This field is required."]},
+            },
+        )
+
+    def test_delete_entry_does_not_exist(self):
+        resp = self.client.post(
+            self.endpoint,
+            {
+                "action": "delete",
+                "url": "http://example.com/notes/1/",
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.headers.get("content-type"), "application/json")
+        self.assertEqual(
+            json.loads(resp.content),
+            {
+                "error": "invalid_request",
+                "error_description": (
+                    "The post with the requested URL was not found"
+                ),
+            },
+        )
+
+    def test_delete_entry_does_not_exist_json(self):
+        data = {
+            "action": "delete",
+            "url": "http://example.com/notes/1/",
+        }
+        resp = self.client.post(
+            self.endpoint,
+            data=data,
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.headers.get("content-type"), "application/json")
+        self.assertEqual(
+            json.loads(resp.content),
+            {
+                "error": "invalid_request",
+                "error_description": (
+                    "The post with the requested URL was not found"
+                ),
             },
         )
 
@@ -412,7 +455,7 @@ class MicroPubAuthorizedTestCase(TestCase):
             self.advanced,
             {
                 "h": "entry",
-                "name": "hello world",
+                "title": "hello world",
                 "content": "post body",
                 "slug": "hello-world",
             },
@@ -462,7 +505,11 @@ class MicroPubAuthorizedTestCase(TestCase):
         # self.assertEqual(entry.post_type, "note")
 
     def test_create_post_with_one_tag(self):
-        data = {"content": "a post with some tags", "category": "apple"}
+        data = {
+            "h": "entry",
+            "content": "a post with some tags",
+            "category": "apple",
+        }
         resp = self.client.post(self.endpoint, data)
 
         self.assertEqual(resp.status_code, 201)
@@ -473,6 +520,7 @@ class MicroPubAuthorizedTestCase(TestCase):
 
     def test_create_post_with_tags(self):
         data = {
+            "h": "entry",
             "content": "a post with some tags",
             "category[]": ("apple", "orange"),
         }
@@ -771,19 +819,24 @@ class MicroPubAuthorizedTestCase(TestCase):
 
     def test_update_with_bad_request(self):
         Post.objects.create(
-            content="This test deletes a category from the post. After you run the update, this post should have only the category test1.",
+            content=(
+                "This test deletes a category from the post. "
+                "After you run the update, this post should have "
+                "only the category test1."
+            ),
         )
         content_type = "application/json"
         data = {
             "action": "update",
             "url": "http://example.com/notes/1/",
-            "replace": "This is in an invalid format, it should be wrapped in [].",
+            "replace": (
+                "This is in an invalid format, it should be wrapped in []."
+            ),
         }
         resp = self.client.post(
             self.endpoint,
             content_type=content_type,
             data=data,
-            # HTTP_ACCEPT=content_type,
         )
         self.assertEqual(resp.status_code, 400)
 
@@ -817,9 +870,34 @@ class MicroPubAuthorizedTestCase(TestCase):
 
         post = Post.objects.get(url=url)
 
-        self.assertEqual(len(post), 1)
+        self.assertEqual(post.url, url)
 
-        # self.assertEqual(
-        #     urlparse(resp.get("location")).path,
-        #     reverse("advanced-note-detail", kwargs={"slug": "hello-world"}),
-        # )
+        self.assertEqual(
+            urlparse(resp.get("location")).path,
+            reverse("note-detail", kwargs={"pk": post.pk}),
+        )
+
+    def test_create_liked_post_json(self):
+        url = "https://example.com"
+
+        data = {
+            "type": ["h-entry"],
+            "properties": {"like-of": [url]},
+        }
+
+        resp = self.client.post(
+            self.endpoint,
+            content_type="application/json",
+            data=data,
+        )
+
+        self.assertEqual(resp.status_code, 201)
+
+        post = Post.objects.get(url=url)
+
+        self.assertEqual(post.url, url)
+
+        self.assertEqual(
+            urlparse(resp.get("location")).path,
+            reverse("note-detail", kwargs={"pk": post.pk}),
+        )
