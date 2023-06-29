@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import find_packages, setup
 
 setup(
     name="django-micropub",
@@ -8,6 +8,6 @@ setup(
     author="Benjamin Turner",
     author_email="ben@benjaminturner.me",
     license="MIT",
-    packages=["micropub"],
+    packages=find_packages(),
     zip_safe=False,
 )

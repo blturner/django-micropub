@@ -1,6 +1,11 @@
 from django import forms
 from django.core.exceptions import ValidationError
 
+try:
+    from django.forms import JSONField
+except ImportError:
+    from django.contrib.postgres.forms import JSONField
+
 
 class AuthForm(forms.Form):
     access_token = forms.CharField(required=False)
@@ -36,9 +41,9 @@ class UpdateForm(forms.ModelForm):
     h = forms.ChoiceField(required=False, choices=[("entry", "entry")])
     action = forms.CharField()
     url = forms.URLField()
-    replace = forms.JSONField(required=False)
-    add = forms.JSONField(required=False)
-    delete = forms.JSONField(required=False)
+    replace = JSONField(required=False)
+    add = JSONField(required=False)
+    delete = JSONField(required=False)
 
     def clean(self):
         cleaned_data = super().clean()
