@@ -27,7 +27,7 @@ from django.utils.decorators import method_decorator
 
 from .forms import DeleteForm
 from . import forms as micropub_forms
-from .models import Media
+from .models import Media, Post
 
 
 logger = logging.getLogger(__name__)
@@ -275,9 +275,7 @@ class MicropubMixin(object):
             return super().get_form_class()
 
 
-class MicropubCreateView(
-    MicropubMixin, JsonableResponseMixin, generic.CreateView
-):
+class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateView):
     def form_valid(self, form):
         self.object = form.save()
 
@@ -365,9 +363,7 @@ class MicropubCreateView(
                         {
                             "data": {
                                 k: v[0] if len(v) == 1 else v
-                                for (k, v) in data.get(
-                                    "properties", {}
-                                ).items()
+                                for (k, v) in data.get("properties", {}).items()
                             }
                         }
                     )
@@ -401,11 +397,7 @@ class MicropubCreateView(
 
                     if "mp-syndicate-to" in kwargs.get("data").keys():
                         kwargs.get("data").update(
-                            {
-                                "syndicate_to": kwargs.get("data").pop(
-                                    "mp-syndicate-to"
-                                )
-                            }
+                            {"syndicate_to": kwargs.get("data").pop("mp-syndicate-to")}
                         )
 
                 # bookmark-of, reply-to, like-of need to be converted to
@@ -413,9 +405,7 @@ class MicropubCreateView(
 
                 if "type" in data.keys():
                     entry_type = data.get("type").pop()
-                    kwargs.get("data", {}).update(
-                        {"h": entry_type.replace("h-", "")}
-                    )
+                    kwargs.get("data", {}).update({"h": entry_type.replace("h-", "")})
 
                 return kwargs
             except json.decoder.JSONDecodeError:
@@ -438,9 +428,7 @@ class MicropubCreateView(
             kwargs.update({"data": data})
 
         if "like-of" in kwargs.get("data").keys():
-            kwargs.get("data").update(
-                {"url": kwargs.get("data").get("like-of")}
-            )
+            kwargs.get("data").update({"url": kwargs.get("data").get("like-of")})
 
         return kwargs
 
@@ -612,9 +600,8 @@ class MicropubUndeleteView(MicropubDeleteView):
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-class MicropubView(
-    IndieAuthMixin, JsonableResponseMixin, ModelFormMixin, generic.View
-):
+class MicropubView(IndieAuthMixin, JsonableResponseMixin, ModelFormMixin, generic.View):
+    model = Post
     form_class = micropub_forms.AuthForm
     update_view = MicropubUpdateView
     # fields = "__all__"
@@ -654,17 +641,13 @@ class MicropubView(
                 return JsonResponseBadRequest(
                     {
                         "error": "invalid_request",
-                        "error_description": {
-                            "url": ["This field is required."]
-                        },
+                        "error_description": {"url": ["This field is required."]},
                     }
                 )
 
         # if not h=entry this is not a create request
 
-        view = MicropubCreateView.as_view(
-            model=self.model, form_class=self.form_class
-        )
+        view = MicropubCreateView.as_view(model=self.model, form_class=self.form_class)
 
         scopes = self.request.session.get("scope")
 
@@ -719,9 +702,7 @@ class MediaEndpoint(generic.CreateView):
 
         resp = HttpResponse(status=201)
 
-        resp["Location"] = self.request.build_absolute_uri(
-            self.object.file.url
-        )
+        resp["Location"] = self.request.build_absolute_uri(self.object.file.url)
 
         return resp
 

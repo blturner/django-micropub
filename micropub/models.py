@@ -1,16 +1,23 @@
 import uuid
 
 from django.db import models
+from django.conf import settings
 from django.contrib.contenttypes.fields import (
     GenericForeignKey,
     GenericRelation,
 )
 from django.contrib.contenttypes.models import ContentType
 from django.forms.fields import MultipleChoiceField
+from django.urls import reverse
 
 from model_utils import Choices
-from model_utils.models import SoftDeletableModel, TimeStampedModel
+from model_utils.models import SoftDeletableModel, StatusModel, TimeStampedModel
 from multiselectfield import MultiSelectField
+
+from .utils import get_plural
+
+
+TYPES = Choices(*[t[0] for t in settings.MICROPUB_POST_TYPES.values()])
 
 
 def upload_to(instance, filename):
@@ -28,8 +35,15 @@ class Media(TimeStampedModel):
         return self.file.url
 
 
-class MicropubModel(SoftDeletableModel, TimeStampedModel, models.Model):
-    # need to move name, content, tags, url to this model
+class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
+    STATUS = Choices("draft", "published")
+    TYPE_CHOICES = TYPES
+
+    name = models.CharField(blank=True, max_length=255)
+    content = models.TextField(blank=True)
+    post_type = models.CharField(
+        choices=TYPE_CHOICES, default=TYPE_CHOICES.note, max_length=20
+    )
     media = models.ManyToManyField(
         Media,
         # related_name="%(app_label)s_%(class)s_related",
@@ -54,14 +68,18 @@ class MicropubModel(SoftDeletableModel, TimeStampedModel, models.Model):
         ),
         max_length=255,
     )
+    syndications = GenericRelation("Syndication")
     url = models.URLField(blank=True, max_length=2000)
 
-    class Meta:
-        abstract = True
+    def get_absolute_url(self):
+        post_type = get_plural(self.post_type)
+        return reverse("post-detail", kwargs={"post_type": post_type, "pk": self.pk})
 
     @staticmethod
     def from_url(url):
-        raise NotImplementedError
+        view, args, kwargs = resolve(urlparse(url)[2])
+        note = Note.objects.get(pk=kwargs.get("pk"))
+        return note
 
     def syndicate(self, resend=False):
         """
@@ -74,9 +92,7 @@ class MicropubModel(SoftDeletableModel, TimeStampedModel, models.Model):
             if existing_syndications and not resend:
                 return
 
-            send_webmention(
-                syndicate.endpoint, self.get_absolute_url(), self.url
-            )
+            send_webmention(syndicate.endpoint, self.get_absolute_url(), self.url)
 
 
 class Syndication(TimeStampedModel, models.Model):
