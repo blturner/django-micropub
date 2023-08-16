@@ -7,8 +7,17 @@ except ImportError:
     from django.contrib.postgres.forms import JSONField
 
 
+from .models import Post
+
+
 class AuthForm(forms.Form):
     access_token = forms.CharField(required=False)
+
+
+class PostForm(forms.ModelForm):
+    class Meta:
+        model = Post
+        fields = ["name", "content", "post_type", "rsvp", "url", "status", ]
 
 
 class DeleteForm(forms.Form):

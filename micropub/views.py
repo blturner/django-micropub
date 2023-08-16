@@ -236,11 +236,6 @@ class SourceView(IndieAuthMixin, JSONResponseMixin, View):
 
 
 class MicropubMixin(object):
-    # def get_form(self, form_class=None):
-    #     import ipdb
-
-    #     ipdb.set_trace()
-
     def get_form_class(self):
         if self.request.content_type == "application/json":
             body = json.loads(self.request.body)
@@ -258,14 +253,7 @@ class MicropubMixin(object):
             if properties.get("repost-of"):
                 self.form_class = micropub_forms.RepostForm
 
-        # import ipdb
-
-        # ipdb.set_trace()
-
         if self.model and self.form_class:
-            # import ipdb
-
-            # ipdb.set_trace()
             return forms.models.modelform_factory(
                 self.model,
                 form=self.form_class,
@@ -276,12 +264,15 @@ class MicropubMixin(object):
 
 
 class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateView):
+    form_class = micropub_forms.PostForm
+
     def form_valid(self, form):
+        import ipdb
+
+        ipdb.set_trace()
         self.object = form.save()
 
-        if "name" and "content" in form.fields.keys():
-            self.object.post_type = "article"
-            self.object.save()
+        # self.object.post_type = form.data.get("post_type")
 
         try:
             photos = form.files.getlist("photo")
@@ -379,10 +370,20 @@ class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateVie
                     except AttributeError:
                         pass
 
+                    if kwargs.get("data").keys() >= {"name", "content"}:
+                        kwargs.get("data").update({"post_type": "article"})
+                    else:
+                        kwargs.get("data").update({"post_type": "note"})
+
                     for k in url_keys:
                         if k in kwargs.get("data").keys():
+                            post_type = settings.MICROPUB_POST_TYPES[k][0]
+
                             kwargs.get("data").update(
-                                {"url": kwargs.get("data").pop(k)}
+                                {
+                                    "post_type": post_type,
+                                    "url": kwargs.get("data").pop(k),
+                                }
                             )
 
                     # if "rsvp" in kwargs.get("data").keys():
@@ -406,7 +407,6 @@ class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateVie
                 if "type" in data.keys():
                     entry_type = data.get("type").pop()
                     kwargs.get("data", {}).update({"h": entry_type.replace("h-", "")})
-
                 return kwargs
             except json.decoder.JSONDecodeError:
                 logger.debug("bad json")
@@ -647,7 +647,7 @@ class MicropubView(IndieAuthMixin, JsonableResponseMixin, ModelFormMixin, generi
 
         # if not h=entry this is not a create request
 
-        view = MicropubCreateView.as_view(model=self.model, form_class=self.form_class)
+        view = MicropubCreateView.as_view(model=self.model)
 
         scopes = self.request.session.get("scope")
 
