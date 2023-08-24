@@ -71,6 +71,9 @@ class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
     syndications = GenericRelation("Syndication")
     url = models.URLField(blank=True, max_length=2000)
 
+    def __str__(self):
+        return self.name or self.url or self.content
+
     def get_absolute_url(self):
         post_type = get_plural(self.post_type)
         return reverse("post-detail", kwargs={"post_type": post_type, "pk": self.pk})
@@ -78,7 +81,7 @@ class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
     @staticmethod
     def from_url(url):
         view, args, kwargs = resolve(urlparse(url)[2])
-        note = Note.objects.get(pk=kwargs.get("pk"))
+        note = Post.objects.get(pk=kwargs.get("pk"))
         return note
 
     def syndicate(self, resend=False):

@@ -4,7 +4,7 @@ from .models import Post, Media, Syndication
 
 
 class PostAdmin(admin.ModelAdmin):
-    list_display = ["content", "post_type"]
+    list_display = ["__str__", "post_type"]
 
 
 admin.site.register(Post, PostAdmin)

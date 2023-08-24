@@ -17,7 +17,14 @@ class AuthForm(forms.Form):
 class PostForm(forms.ModelForm):
     class Meta:
         model = Post
-        fields = ["name", "content", "post_type", "rsvp", "url", "status", ]
+        fields = [
+            "name",
+            "content",
+            "post_type",
+            "rsvp",
+            "url",
+            "status",
+        ]
 
 
 class DeleteForm(forms.Form):
@@ -33,7 +40,13 @@ class DeleteForm(forms.Form):
 
 
 class FavoriteForm(forms.ModelForm):
-    url = forms.URLField()
+    class Meta(PostForm.Meta):
+        fields = [
+            "content",
+            "post_type",
+            "status",
+            "url",
+        ]
 
 
 class ReplyForm(forms.ModelForm):

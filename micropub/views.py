@@ -237,34 +237,30 @@ class SourceView(IndieAuthMixin, JSONResponseMixin, View):
 
 class MicropubMixin(object):
     def get_form_class(self):
+        url_keys = ["like-of", "in-reply-to", "repost-of"]
+
         if self.request.content_type == "application/json":
             body = json.loads(self.request.body)
             properties = body.get("properties", {})
 
-            # if "action" in body.keys():
-            #     self.form_class = micropub_forms.UpdateForm
+            if any(key in url_keys for key in properties.keys()):
+                # self.form_class = micropub_forms.FavoriteForm
+                return micropub_forms.FavoriteForm
 
-            if properties.get("like-of"):
-                self.form_class = micropub_forms.FavoriteForm
+        return micropub_forms.PostForm
 
-            if properties.get("in-reply-to"):
-                self.form_class = micropub_forms.ReplyForm
-
-            if properties.get("repost-of"):
-                self.form_class = micropub_forms.RepostForm
-
-        if self.model and self.form_class:
-            return forms.models.modelform_factory(
-                self.model,
-                form=self.form_class,
-                fields=self.form_class.base_fields.keys(),
-            )
-        else:
-            return super().get_form_class()
+        # if self.model and self.form_class:
+        #     return forms.models.modelform_factory(
+        #         self.model,
+        #         form=self.form_class,
+        #         fields=self.form_class.base_fields.keys(),
+        #     )
+        # else:
+        #     return super().get_form_class()
 
 
 class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateView):
-    form_class = micropub_forms.PostForm
+    # form_class = micropub_forms.PostForm
 
     def form_valid(self, form):
         import ipdb
@@ -289,7 +285,7 @@ class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateVie
         pt_keys = [k for k in form.data.keys() if k in post_types.keys()]
 
         for key in pt_keys:
-            self.object.post_type = post_types[key][0]
+            # self.object.post_type = post_types[key][0]
 
             if self.object.post_type == "rsvp":
                 self.object.rsvp = form.data.get(key)
