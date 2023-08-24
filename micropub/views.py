@@ -263,12 +263,11 @@ class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateVie
     # form_class = micropub_forms.PostForm
 
     def form_valid(self, form):
-        import ipdb
+        # import ipdb
 
-        ipdb.set_trace()
+        # ipdb.set_trace()
+
         self.object = form.save()
-
-        # self.object.post_type = form.data.get("post_type")
 
         try:
             photos = form.files.getlist("photo")
