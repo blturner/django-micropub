@@ -604,11 +604,14 @@ class MicropubView(IndieAuthMixin, JsonableResponseMixin, ModelFormMixin, generi
     def get(self, request, *args, **kwargs):
         query = self.request.GET.get("q")
 
+        view = None
+
         if not query:
             logger.debug("bloop bleep")
-            return HttpResponseBadRequest()
+            raise SuspiciousOperation()
+            # return HttpResponseBadRequest()
 
-        if query == "config" or query == "syndicate-to":
+        if query in ("config", "syndicate-to"):
             view = ConfigView.as_view()
 
         if query == "source":
