@@ -606,7 +606,7 @@ class MicropubView(IndieAuthMixin, JsonableResponseMixin, ModelFormMixin, generi
 
         if not query:
             logger.debug("bloop bleep")
-            raise SuspiciousOperation()
+            return HttpResponseBadRequest()
 
         if query == "config" or query == "syndicate-to":
             view = ConfigView.as_view()
