@@ -28,7 +28,13 @@ class PostList(PostMixin, generic.ListView):
 
 
 class PostDetail(PostMixin, generic.DetailView):
-    pass
+    def get_template_names(self):
+        post_type = self.object.post_type
+        template_name = "micropub/{}_detail.html".format(post_type)
+        template_names = super().get_template_names()
+        template_names = [template_name] + template_names
+
+        return template_names
 
 
 urlpatterns = [

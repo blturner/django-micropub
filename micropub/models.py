@@ -1,5 +1,7 @@
 import uuid
 
+from urllib.parse import urlparse
+
 from django.db import models
 from django.conf import settings
 from django.contrib.contenttypes.fields import (
@@ -8,7 +10,7 @@ from django.contrib.contenttypes.fields import (
 )
 from django.contrib.contenttypes.models import ContentType
 from django.forms.fields import MultipleChoiceField
-from django.urls import reverse
+from django.urls import resolve, reverse
 
 from model_utils import Choices
 from model_utils.models import SoftDeletableModel, StatusModel, TimeStampedModel
@@ -90,7 +92,7 @@ class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
         micropub/webmention request to the syndication endpoint.
         """
         for syndicate in self.syndicate_to:
-            existing_syndications = Syndicate.objects.filter(url=self.url)
+            existing_syndications = Syndication.objects.filter(url=self.url)
 
             if existing_syndications and not resend:
                 return

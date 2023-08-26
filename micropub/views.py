@@ -206,8 +206,6 @@ class ConfigView(IndieAuthMixin, JSONResponseMixin, View):
 
 
 class SourceView(IndieAuthMixin, JSONResponseMixin, View):
-    model = None
-
     def get(self, request, **kwargs):
         properties = self.request.GET.getlist("properties[]", [])
         url = self.request.GET.get("url")
@@ -215,7 +213,7 @@ class SourceView(IndieAuthMixin, JSONResponseMixin, View):
         if not url:
             return HttpResponseBadRequest()
 
-        post = self.model.from_url(url)
+        post = Post.from_url(url)
         context = {"type": ["h-entry"], "properties": {}}
 
         if properties:
@@ -609,10 +607,12 @@ class MicropubView(IndieAuthMixin, JsonableResponseMixin, ModelFormMixin, generi
             raise SuspiciousOperation()
 
         if query in ("config", "syndicate-to"):
-            return ConfigView.as_view(request, *args, **kwargs)
+            view = ConfigView.as_view()
+            return view(request, *args, **kwargs)
 
         if query == "source":
-            return SourceView.as_view(request, *args, **kwargs)
+            view = SourceView.as_view()
+            return view(request, *args, **kwargs)
 
         return HttpResponseBadRequest()
 
