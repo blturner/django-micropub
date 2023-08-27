@@ -26,6 +26,8 @@ class PostForm(forms.ModelForm):
             "status",
         ]
 
+    status = forms.CharField(required=False)
+
 
 class DeleteForm(forms.Form):
     action = forms.CharField()
@@ -39,7 +41,7 @@ class DeleteForm(forms.Form):
     #     ipdb.set_trace()
 
 
-class FavoriteForm(forms.ModelForm):
+class FavoriteForm(PostForm):
     class Meta(PostForm.Meta):
         fields = [
             "content",
