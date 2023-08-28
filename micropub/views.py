@@ -27,7 +27,7 @@ from django.utils.decorators import method_decorator
 
 from .forms import DeleteForm
 from . import forms as micropub_forms
-from .models import Media, Post
+from .models import Media, Post, SyndicationTarget
 
 
 logger = logging.getLogger(__name__)
@@ -195,12 +195,11 @@ class MicropubObjectMixin(object):
 
 class ConfigView(IndieAuthMixin, JSONResponseMixin, View):
     def get(self, request):
-        syndicate_to = getattr(settings, "MICROPUB_SYNDICATION_TARGETS", [])
         context = {
             "media-endpoint": request.build_absolute_uri(
                 reverse("micropub-media-endpoint")
             ),
-            "syndicate-to": syndicate_to,
+            "syndicate-to": list(SyndicationTarget.objects.values("uid", "name")),
         }
         return self.render_to_json_response(context)
 
@@ -261,10 +260,6 @@ class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateVie
     # form_class = micropub_forms.PostForm
 
     def form_valid(self, form):
-        # import ipdb
-
-        # ipdb.set_trace()
-
         self.object = form.save()
 
         try:
@@ -390,9 +385,13 @@ class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateVie
                         )
 
                     if "mp-syndicate-to" in kwargs.get("data").keys():
-                        kwargs.get("data").update(
-                            {"syndicate_to": kwargs.get("data").pop("mp-syndicate-to")}
+                        syndication_targets = kwargs.get("data").pop("mp-syndicate-to")
+
+                        syndicate_to = SyndicationTarget.objects.filter(
+                            uid__in=syndication_targets
                         )
+
+                        kwargs.get("data").update({"syndicate_to": syndicate_to})
 
                 # bookmark-of, reply-to, like-of need to be converted to
                 # the `url` key in kwargs

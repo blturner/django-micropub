@@ -39,6 +39,10 @@ class Media(TimeStampedModel):
 
 class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
     STATUS = Choices("draft", "published")
+    SYNDICATION_CHOICES = Choices(
+        (0, "https://archive.org/", "Internet Archive"),
+        (1, "https://social.benjaminturner.me", "Mastodon"),
+    )
     TYPE_CHOICES = TYPES
 
     name = models.CharField(blank=True, max_length=255)
@@ -62,14 +66,7 @@ class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
             ("interested", "Interested"),
         ),
     )
-    syndicate_to = MultiSelectField(
-        blank=True,
-        choices=Choices(
-            (0, "Internet Archive"),
-            (1, "Mastodon"),
-        ),
-        max_length=255,
-    )
+    syndicate_to = models.ManyToManyField("SyndicationTarget")
     syndications = GenericRelation("Syndication")
     url = models.URLField(blank=True, max_length=2000)
 
@@ -98,6 +95,14 @@ class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
                 return
 
             send_webmention(syndicate.endpoint, self.get_absolute_url(), self.url)
+
+
+class SyndicationTarget(TimeStampedModel, models.Model):
+    uid = models.URLField(max_length=2000)
+    name = models.CharField(max_length=255)
+
+    def __str__(self):
+        return self.name
 
 
 class Syndication(TimeStampedModel, models.Model):

@@ -15,6 +15,8 @@ class AuthForm(forms.Form):
 
 
 class PostForm(forms.ModelForm):
+    status = forms.CharField(required=False)
+
     class Meta:
         model = Post
         fields = [
@@ -24,9 +26,19 @@ class PostForm(forms.ModelForm):
             "rsvp",
             "url",
             "status",
+            "syndicate_to",
         ]
 
-    status = forms.CharField(required=False)
+    # def save(self, commit=True):
+    #     instance = super().save(commit=False)
+
+    #     import ipdb
+
+    #     ipdb.set_trace()
+
+    #     if commit:
+    #         instance.save()
+    #     return instance
 
 
 class DeleteForm(forms.Form):
@@ -43,11 +55,9 @@ class DeleteForm(forms.Form):
 
 class FavoriteForm(PostForm):
     class Meta(PostForm.Meta):
-        fields = [
-            "content",
-            "post_type",
-            "status",
-            "url",
+        exclude = [
+            "name",
+            "rsvp",
         ]
 
 
