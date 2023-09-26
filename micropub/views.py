@@ -25,6 +25,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.urls import reverse
 from django.utils.decorators import method_decorator
 
+from sentry_sdk import capture_message
+
 from .forms import DeleteForm
 from . import forms as micropub_forms
 from .models import Media, Post, SyndicationTarget
@@ -319,6 +321,7 @@ class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateVie
         return resp
 
     def form_invalid(self, form):
+        capture_message("something went wrong")
         return JsonResponse(
             {"error": "invalid_request", "error_description": form.errors},
             status=400,
