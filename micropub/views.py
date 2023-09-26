@@ -321,7 +321,9 @@ class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateVie
         return resp
 
     def form_invalid(self, form):
-        capture_message("something went wrong")
+        with sentry_sdk.push_scope():
+            scope.set_extra(form.errors)
+            capture_message("failed to create post")
         return JsonResponse(
             {"error": "invalid_request", "error_description": form.errors},
             status=400,
