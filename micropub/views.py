@@ -25,6 +25,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.urls import reverse
 from django.utils.decorators import method_decorator
 
+import sentry_sdk
+
 from sentry_sdk import capture_message
 
 from .forms import DeleteForm
