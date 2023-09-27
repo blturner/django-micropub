@@ -1,19 +1,28 @@
 import uuid
+from datetime import datetime
 
 from urllib.parse import urlparse
 
 from django.db import models
+from django.db.models import Q
 from django.conf import settings
 from django.contrib.contenttypes.fields import (
     GenericForeignKey,
     GenericRelation,
 )
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.postgres.fields import JSONField
 from django.forms.fields import MultipleChoiceField
 from django.urls import resolve, reverse
 
 from model_utils import Choices
-from model_utils.models import SoftDeletableModel, StatusModel, TimeStampedModel
+from model_utils.fields import MonitorField
+from model_utils.managers import QueryManager
+from model_utils.models import (
+    SoftDeletableModel,
+    StatusModel,
+    TimeStampedModel,
+)
 from multiselectfield import MultiSelectField
 
 from .utils import get_plural
@@ -37,13 +46,47 @@ class Media(TimeStampedModel):
         return self.file.url
 
 
+class PostManager(QueryManager):
+    def from_timestamp(self, timestamp):
+        dt = datetime.fromtimestamp(timestamp)
+
+        created_lookup = Q(
+            created__date=dt.date(),
+            created__time__startswith=dt.time(),
+            is_removed=False,
+        )
+
+        pub_date_lookup = Q(
+            published_at__date=dt.date(),
+            published_at__time__startswith=dt.time(),
+            is_removed=False,
+        )
+
+        return super().get_queryset().filter(pub_date_lookup | created_lookup)
+
+
 class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
-    STATUS = Choices("draft", "published")
-    SYNDICATION_CHOICES = Choices(
-        (0, "https://archive.org/", "Internet Archive"),
-        (1, "https://social.benjaminturner.me", "Mastodon"),
-    )
+    STATUS = Choices("draft", "published", "updated")
     TYPE_CHOICES = TYPES
+
+    published_at = MonitorField(
+        monitor="status",
+        when=["published"],
+        blank=True,
+        null=True,
+        default=None,
+    )
+    updated_at = MonitorField(
+        monitor="status",
+        when=["updated"],
+        blank=True,
+        null=True,
+        default=None,
+    )
+    extra = JSONField(blank=True, default={})
+
+    all_objects = models.Manager()
+    published = PostManager()
 
     name = models.CharField(blank=True, max_length=255)
     content = models.TextField(blank=True)
@@ -70,12 +113,51 @@ class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
     syndications = GenericRelation("Syndication")
     url = models.URLField(blank=True, max_length=2000)
 
+    class Meta:
+        ordering = ["-published_at"]
+
     def __str__(self):
         return self.name or self.url or self.content
 
+    def get_timestamp(self):
+        try:
+            timestamp = str(self.published_at.timestamp()).split(".")[0]
+        except AttributeError:
+            timestamp = str(self.created.timestamp()).split(".")[0]
+        return timestamp
+
     def get_absolute_url(self):
         post_type = get_plural(self.post_type)
-        return reverse("post-detail", kwargs={"post_type": post_type, "pk": self.pk})
+        timestamp = self.get_timestamp()
+
+        return reverse(
+            "post-detail",
+            kwargs={"post_type": post_type, "pk": str(timestamp)},
+        )
+
+    def get_next_post(self):
+        return (
+            Post.published.filter(
+                post_type=self.post_type,
+                status__in=[self.STATUS.published, self.STATUS.updated],
+                published_at__gt=self.published_at,
+            )
+            .exclude(id__exact=self.id)
+            .order_by("published_at")
+            .first()
+        )
+
+    def get_prev_post(self):
+        return (
+            Post.published.filter(
+                post_type=self.post_type,
+                status__in=[self.STATUS.published, self.STATUS.updated],
+                published_at__lt=self.published_at,
+            )
+            .exclude(id__exact=self.id)
+            .order_by("-published_at")
+            .first()
+        )
 
     @staticmethod
     def from_url(url):
@@ -94,7 +176,9 @@ class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
             if existing_syndications and not resend:
                 return
 
-            send_webmention(syndicate.endpoint, self.get_absolute_url(), self.url)
+            send_webmention(
+                syndicate.endpoint, self.get_absolute_url(), self.url
+            )
 
 
 class SyndicationTarget(TimeStampedModel, models.Model):
