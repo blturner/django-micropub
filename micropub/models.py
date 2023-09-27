@@ -109,7 +109,7 @@ class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
             ("interested", "Interested"),
         ),
     )
-    syndicate_to = models.ManyToManyField("SyndicationTarget")
+    syndicate_to = models.ManyToManyField("SyndicationTarget", blank=True)
     syndications = GenericRelation("Syndication")
     url = models.URLField(blank=True, max_length=2000)
 
