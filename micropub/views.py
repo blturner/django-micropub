@@ -426,8 +426,19 @@ class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateVie
             data["tags"] = ", ".join(data.pop("category"))
             kwargs.update({"data": data})
 
-        if "like-of" in kwargs.get("data").keys():
-            kwargs.get("data").update({"url": kwargs.get("data").get("like-of")})
+        if kwargs.get("data").keys() >= {"name", "content"}:
+            kwargs.get("data").update({"post_type": "article"})
+        else:
+            kwargs.get("data").update({"post_type": "note"})
+
+        for k in url_keys:
+            if k in kwargs.get("data").keys():
+                kwargs.get("data").update(
+                    {
+                        "post_type": settings.MICROPUB_POST_TYPES[k][0],
+                        "url": kwargs.get("data").pop(k),
+                    }
+                )
 
         return kwargs
 
