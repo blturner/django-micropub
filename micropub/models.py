@@ -12,7 +12,6 @@ from django.contrib.contenttypes.fields import (
 )
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
-from django.forms.fields import MultipleChoiceField
 from django.urls import resolve, reverse
 
 from model_utils import Choices
@@ -23,7 +22,6 @@ from model_utils.models import (
     StatusModel,
     TimeStampedModel,
 )
-from multiselectfield import MultiSelectField
 
 from .utils import get_plural
 
@@ -170,9 +168,6 @@ class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
             .order_by("-published_at")
             .first()
         )
-
-    def get_slug_or_timestamp(self):
-        return self.slug or self.get_timestamp()
 
     @staticmethod
     def from_url(url):
