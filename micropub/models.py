@@ -47,6 +47,11 @@ class Media(TimeStampedModel):
 
 
 class PostManager(QueryManager):
+    def get_queryset(self):
+        return (
+            super().get_queryset().filter(status__in=["published", "updated"])
+        )
+
     def from_timestamp(self, timestamp):
         dt = datetime.fromtimestamp(timestamp)
 
@@ -109,6 +114,7 @@ class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
             ("interested", "Interested"),
         ),
     )
+    slug = models.SlugField(blank=True)
     syndicate_to = models.ManyToManyField("SyndicationTarget", blank=True)
     syndications = GenericRelation("Syndication")
     url = models.URLField(blank=True, max_length=2000)
@@ -128,11 +134,17 @@ class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
 
     def get_absolute_url(self):
         post_type = get_plural(self.post_type)
-        timestamp = self.get_timestamp()
+        kwargs = {"post_type": post_type}
+
+        if self.slug:
+            kwargs.update({"slug": self.slug})
+            return reverse("slug-post-detail", kwargs=kwargs)
+
+        kwargs.update({"pk": str(self.get_timestamp())})
 
         return reverse(
             "post-detail",
-            kwargs={"post_type": post_type, "pk": str(timestamp)},
+            kwargs=kwargs,
         )
 
     def get_next_post(self):
@@ -158,6 +170,9 @@ class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
             .order_by("-published_at")
             .first()
         )
+
+    def get_slug_or_timestamp(self):
+        return self.slug or self.get_timestamp()
 
     @staticmethod
     def from_url(url):

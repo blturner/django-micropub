@@ -57,6 +57,16 @@ class PostDetail(PostMixin, generic.DetailView):
         return [template_name] + template_names
 
 
+class SluggedPostDetail(generic.DetailView):
+    model = Post
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        post_type = get_singular(self.kwargs.get("post_type"))
+
+        return qs.filter(post_type=post_type)
+
+
 urlpatterns = [
     url(
         r"^(?P<post_type>\w+)/$",
@@ -67,5 +77,10 @@ urlpatterns = [
         r"^(?P<post_type>\w+)/(?P<pk>\d+)/$",
         PostDetail.as_view(),
         name="post-detail",
+    ),
+    url(
+        r"^(?P<post_type>\w+)/(?P<slug>[-\w]+)/$",
+        SluggedPostDetail.as_view(),
+        name="slug-post-detail",
     ),
 ]
