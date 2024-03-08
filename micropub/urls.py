@@ -14,9 +14,9 @@ class PostMixin(object):
     def get_queryset(self):
         try:
             post_type = self.kwargs.get("post_type")
-            queryset = Post.published.filter(
-                post_type=get_singular(post_type)
-            ).exclude(is_removed=True)
+            queryset = Post.published.filter(post_type=get_singular(post_type)).exclude(
+                is_removed=True
+            )
             # ordering = self.get_ordering()
             # if ordering:
             #     if isinstance(ordering, six.string_types):
@@ -62,6 +62,10 @@ class SluggedPostDetail(generic.DetailView):
 
     def get_queryset(self):
         qs = super().get_queryset()
+
+        if not self.kwargs.get("post_type") in settings.MICROPUB_POST_TYPES.keys():
+            raise Http404()
+
         post_type = get_singular(self.kwargs.get("post_type"))
 
         return qs.filter(post_type=post_type)
