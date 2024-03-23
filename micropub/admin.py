@@ -12,7 +12,12 @@ class PostAdmin(admin.ModelAdmin):
         "post_type",
         "is_removed",
     ]
-    list_filter = ["post_type", "status", "is_removed"]
+    list_filter = [
+        "post_type",
+        "status",
+        "is_removed",
+        "published_at",
+    ]
     ordering = ("-published_at", "-created")
 
 
