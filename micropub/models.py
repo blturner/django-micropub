@@ -22,6 +22,7 @@ from model_utils.models import (
     StatusModel,
     TimeStampedModel,
 )
+from taggit.managers import TaggableManager
 
 from .utils import get_plural
 
@@ -120,6 +121,7 @@ class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
     slug = models.SlugField(blank=True)
     syndicate_to = models.ManyToManyField("SyndicationTarget", blank=True)
     syndications = GenericRelation("Syndication")
+    tags = TaggableManager(blank=True)
     url = models.URLField(blank=True, max_length=2000)
 
     class Meta:

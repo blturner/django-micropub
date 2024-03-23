@@ -27,6 +27,7 @@ class PostForm(forms.ModelForm):
             "url",
             "status",
             "syndicate_to",
+            "tags",
         ]
 
     # def save(self, commit=True):
