@@ -431,6 +431,9 @@ class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateVie
         else:
             kwargs.get("data").update({"post_type": "note"})
 
+        if "post-status" in kwargs.get("data", {}).keys():
+            kwargs.get("data").update({"status": kwargs.get("data").get("post-status")})
+
         for k in url_keys:
             if k in kwargs.get("data").keys():
                 kwargs.get("data").update(
