@@ -47,7 +47,10 @@ class Media(TimeStampedModel):
 class PostManager(QueryManager):
     def get_queryset(self):
         return (
-            super().get_queryset().filter(status__in=["published", "updated"])
+            super()
+            .get_queryset()
+            .exclude(is_removed=True)
+            .filter(status__in=["published", "updated"])
         )
 
     def from_timestamp(self, timestamp):
@@ -78,6 +81,7 @@ class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
         blank=True,
         null=True,
         default=None,
+        unique=True,
     )
     updated_at = MonitorField(
         monitor="status",
@@ -85,6 +89,7 @@ class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
         blank=True,
         null=True,
         default=None,
+        unique=True,
     )
     extra = JSONField(blank=True, default={})
 
@@ -119,6 +124,13 @@ class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
 
     class Meta:
         ordering = ["-published_at"]
+        unique_together = (
+            ("content", "published_at"),
+            (
+                "url",
+                "published_at",
+            ),
+        )
 
     def __str__(self):
         return self.name or self.url or self.content
@@ -186,9 +198,7 @@ class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
             if existing_syndications and not resend:
                 return
 
-            send_webmention(
-                syndicate.endpoint, self.get_absolute_url(), self.url
-            )
+            send_webmention(syndicate.endpoint, self.get_absolute_url(), self.url)
 
 
 class SyndicationTarget(TimeStampedModel, models.Model):
