@@ -10,6 +10,7 @@ from .utils import get_singular
 
 class PostMixin(object):
     model = Post
+    post_type = None
 
     def get_queryset(self):
         try:
@@ -63,10 +64,10 @@ class SluggedPostDetail(generic.DetailView):
     def get_queryset(self):
         qs = super().get_queryset()
 
-        if not self.kwargs.get("post_type") in settings.MICROPUB_POST_TYPES.keys():
-            raise Http404()
-
         post_type = get_singular(self.kwargs.get("post_type"))
+
+        if not post_type in settings.MICROPUB_POST_TYPES.keys():
+            raise Http404()
 
         return qs.filter(post_type=post_type)
 
