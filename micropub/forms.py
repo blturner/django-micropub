@@ -18,7 +18,7 @@ class PostForm(forms.ModelForm):
     status = forms.CharField(required=False)
 
     class Meta:
-        model = Post
+        # model = Post
         fields = [
             "name",
             "content",
@@ -26,7 +26,6 @@ class PostForm(forms.ModelForm):
             "rsvp",
             "url",
             "status",
-            "syndicate_to",
             "tags",
         ]
 

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Post, Media, Syndication, SyndicationTarget
+from .models import Post, Media, SyndicationTarget
 
 
 class PostAdmin(admin.ModelAdmin):
@@ -27,5 +27,4 @@ class SyndicationTargetAdmin(admin.ModelAdmin):
 
 admin.site.register(Post, PostAdmin)
 admin.site.register(Media)
-admin.site.register(Syndication)
 admin.site.register(SyndicationTarget, SyndicationTargetAdmin)

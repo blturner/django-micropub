@@ -29,9 +29,13 @@ import sentry_sdk
 
 from sentry_sdk import capture_message
 
-from .forms import DeleteForm
+from .forms import DeleteForm, PostForm
 from . import forms as micropub_forms
 from .models import Media, Post, SyndicationTarget
+from .utils import get_post_model
+
+
+# from .signals import send_webmention
 
 
 logger = logging.getLogger(__name__)
@@ -44,6 +48,8 @@ KEY_MAPPING = [
     ("status", "post-status"),
     ("reply_to", "in-reply-to"),
 ]
+
+POST_TYPES = settings.MICROPUB.get("post_types")
 
 
 class BadRequest(Exception):
@@ -237,6 +243,21 @@ class SourceView(IndieAuthMixin, JSONResponseMixin, View):
 
 
 class MicropubMixin(object):
+    fields = [
+        "name",
+        "content",
+        "post_type",
+        "rsvp",
+        "url",
+        "status",
+        "tags",
+    ]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        self.model = get_post_model()
+
     def get_form_class(self):
         url_keys = ["like-of", "in-reply-to", "repost-of"]
 
@@ -248,16 +269,7 @@ class MicropubMixin(object):
                 # self.form_class = micropub_forms.FavoriteForm
                 return micropub_forms.FavoriteForm
 
-        return micropub_forms.PostForm
-
-        # if self.model and self.form_class:
-        #     return forms.models.modelform_factory(
-        #         self.model,
-        #         form=self.form_class,
-        #         fields=self.form_class.base_fields.keys(),
-        #     )
-        # else:
-        #     return super().get_form_class()
+        return super().get_form_class()
 
 
 class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateView):
@@ -277,8 +289,7 @@ class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateVie
                 self.object.media.add(media)
             self.object.save()
 
-        post_types = settings.MICROPUB_POST_TYPES
-        pt_keys = [k for k in form.data.keys() if k in post_types.keys()]
+        pt_keys = [k for k in form.data.keys() if k in POST_TYPES.keys()]
 
         for key in pt_keys:
             # self.object.post_type = post_types[key][0]
@@ -372,7 +383,8 @@ class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateVie
 
                     for k in url_keys:
                         if k in kwargs.get("data").keys():
-                            post_type = settings.MICROPUB_POST_TYPES[k][0]
+                            post_type = POST_TYPES.get(k).get("name")
+                            post_type = self.model.TYPES.__getattr__(post_type)
 
                             kwargs.get("data").update(
                                 {
@@ -387,8 +399,9 @@ class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateVie
                     #         })
 
                     if "post-status" in kwargs.get("data").keys():
+                        status = kwargs.get("data").pop("post-status")
                         kwargs.get("data").update(
-                            {"status": kwargs.get("data").pop("post-status")}
+                            {"status": self.model.STATUS.__getattr__(status)}
                         )
 
                     if "mp-syndicate-to" in kwargs.get("data").keys():
@@ -434,15 +447,6 @@ class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateVie
         if "post-status" in kwargs.get("data", {}).keys():
             kwargs.get("data").update({"status": kwargs.get("data").get("post-status")})
 
-        for k in url_keys:
-            if k in kwargs.get("data").keys():
-                kwargs.get("data").update(
-                    {
-                        "post_type": settings.MICROPUB_POST_TYPES[k][0],
-                        "url": kwargs.get("data").pop(k),
-                    }
-                )
-
         return kwargs
 
 
@@ -460,9 +464,6 @@ class MicropubUpdateView(
         return HttpResponse(status=204)
 
     def form_invalid(self, form):
-        import ipdb
-
-        ipdb.set_trace()
         return super().form_invalid(form)
 
     def get_form_kwargs(self):
@@ -614,7 +615,7 @@ class MicropubUndeleteView(MicropubDeleteView):
 
 @method_decorator(csrf_exempt, name="dispatch")
 class MicropubView(IndieAuthMixin, JsonableResponseMixin, ModelFormMixin, generic.View):
-    model = Post
+    model = get_post_model()
     form_class = micropub_forms.AuthForm
     update_view = MicropubUpdateView
     # fields = "__all__"

@@ -1,3 +1,4 @@
+from django.apps import apps
 from django.conf import settings
 from django.conf.urls import url
 from django.http import Http404, HttpResponseNotFound
@@ -5,11 +6,11 @@ from django.utils import six
 from django.views import generic
 
 from .models import Post
-from .utils import get_singular
+from .utils import get_singular, get_post_model
 
 
 class PostMixin(object):
-    model = Post
+    model = get_post_model()
     post_type = None
 
     def get_queryset(self):

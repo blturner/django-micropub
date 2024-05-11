@@ -1,4 +1,5 @@
 import uuid
+
 from datetime import datetime
 
 from urllib.parse import urlparse
@@ -120,8 +121,7 @@ class Post(SoftDeletableModel, StatusModel, TimeStampedModel, models.Model):
     )
     slug = models.SlugField(blank=True)
     syndicate_to = models.ManyToManyField("SyndicationTarget", blank=True)
-    syndications = GenericRelation("Syndication")
-    tags = TaggableManager(blank=True)
+    tags = TaggableManager(blank=True, related_name="micropub")
     url = models.URLField(blank=True, max_length=2000)
 
     class Meta:
@@ -209,10 +209,3 @@ class SyndicationTarget(TimeStampedModel, models.Model):
 
     def __str__(self):
         return self.name
-
-
-class Syndication(TimeStampedModel, models.Model):
-    url = models.URLField(blank=True, max_length=2000)
-    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
-    object_id = models.PositiveIntegerField()
-    content_object = GenericForeignKey("content_type", "object_id")
