@@ -18,8 +18,8 @@ def get_singular(post_type):
     ][-1]
 
 
-def get_post_model(post_type=None):
-    if post_type:
-        # lookup configured model for post type
-        pass
+def get_post_model(model=None):
+    if model:
+        return apps.get_model(model)
+
     return apps.get_model(settings.MICROPUB.get("default").get("model"))
