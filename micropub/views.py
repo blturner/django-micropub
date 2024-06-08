@@ -260,17 +260,22 @@ class MicropubMixin(object):
             try:
                 post_type = [k for k in properties.keys() if k in POST_TYPES.keys()][0]
             except IndexError:
-                if "name" and "content" in properties.keys():
+                if set(["name", "content"]).issubset(properties.keys()):
                     post_type = "article"
                 else:
                     post_type = "note"
 
             self.model = get_post_model(model=POST_TYPES.get(post_type).get("model"))
 
-            self.form_class = PostForm
+            class_string = (
+                settings.MICROPUB.get("post_types")
+                .get(post_type)
+                .get("form_class", settings.MICROPUB.get("default").get("form_class"))
+            )
+            parts = class_string.split(".")
+            mod = __import__(".".join(parts[:2]), fromlist=[parts[2]])
 
-            if self.model == "Entry":
-                self.form_class = EntryForm
+            self.form_class = getattr(mod, parts[2])
 
         return super().post(request, *args, **kwargs)
 
@@ -393,9 +398,16 @@ class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateVie
                         pass
 
                     if kwargs.get("data").keys() >= {"name", "content"}:
-                        kwargs.get("data").update({"post_type": "article"})
+                        try:
+                            kwargs.get("data").update(
+                                {"post_type": self.model.TYPES.article}
+                            )
+                        except AttributeError:
+                            logger.info(
+                                f"Model {self.model} does not contain TYPES attribute. Skipping post_type."
+                            )
                     else:
-                        kwargs.get("data").update({"post_type": "note"})
+                        kwargs.get("data").update({"post_type": self.model.TYPES.note})
 
                     for k in url_keys:
                         if k in kwargs.get("data").keys():
@@ -469,9 +481,9 @@ class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateVie
             kwargs.update({"data": data})
 
         if kwargs.get("data").keys() >= {"name", "content"}:
-            kwargs.get("data").update({"post_type": "article"})
+            kwargs.get("data").update({"post_type": self.model.TYPES.article})
         else:
-            kwargs.get("data").update({"post_type": "note"})
+            kwargs.get("data").update({"post_type": self.model.TYPES.note})
 
         if "post-status" in kwargs.get("data", {}).keys():
             kwargs.get("data").update({"status": kwargs.get("data").get("post-status")})
