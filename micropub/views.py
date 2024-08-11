@@ -4,12 +4,10 @@ import requests
 
 from urllib.parse import parse_qs
 
-from django import forms
 from django.conf import settings
 from django.core.exceptions import (
     ObjectDoesNotExist,
     SuspiciousOperation,
-    ValidationError,
 )
 from django.forms.models import model_to_dict
 from django.http import (
@@ -29,9 +27,9 @@ import sentry_sdk
 
 from sentry_sdk import capture_message
 
-from .forms import DeleteForm, PostForm, EntryForm
+from .forms import DeleteForm
 from . import forms as micropub_forms
-from .models import Media, Post, SyndicationTarget
+from .models import Media
 from .utils import get_post_model
 
 
@@ -209,7 +207,9 @@ class ConfigView(IndieAuthMixin, JSONResponseMixin, View):
             "media-endpoint": request.build_absolute_uri(
                 reverse("micropub-media-endpoint")
             ),
-            "syndicate-to": list(SyndicationTarget.objects.values("uid", "name")),
+            "syndicate-to": list(
+                SyndicationTarget.objects.values("uid", "name")
+            ),
         }
         return self.render_to_json_response(context)
 
@@ -255,22 +255,31 @@ class MicropubMixin(object):
 
     def post(self, request, *args, **kwargs):
         if not self.model:
-            properties = json.loads(request.body.decode("utf-8")).get("properties")
+            properties = json.loads(request.body.decode("utf-8")).get(
+                "properties"
+            )
 
             try:
-                post_type = [k for k in properties.keys() if k in POST_TYPES.keys()][0]
+                post_type = [
+                    k for k in properties.keys() if k in POST_TYPES.keys()
+                ][0]
             except IndexError:
                 if set(["name", "content"]).issubset(properties.keys()):
                     post_type = "article"
                 else:
                     post_type = "note"
 
-            self.model = get_post_model(model=POST_TYPES.get(post_type).get("model"))
+            self.model = get_post_model(
+                model=POST_TYPES.get(post_type).get("model")
+            )
 
             class_string = (
                 settings.MICROPUB.get("post_types")
                 .get(post_type)
-                .get("form_class", settings.MICROPUB.get("default").get("form_class"))
+                .get(
+                    "form_class",
+                    settings.MICROPUB.get("default").get("form_class"),
+                )
             )
             parts = class_string.split(".")
             mod = __import__(".".join(parts[:2]), fromlist=[parts[2]])
@@ -293,7 +302,9 @@ class MicropubMixin(object):
         return super().get_form_class()
 
 
-class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateView):
+class MicropubCreateView(
+    MicropubMixin, JsonableResponseMixin, generic.CreateView
+):
     # form_class = micropub_forms.PostForm
 
     def form_valid(self, form):
@@ -381,7 +392,9 @@ class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateVie
                         {
                             "data": {
                                 k: v[0] if len(v) == 1 else v
-                                for (k, v) in data.get("properties", {}).items()
+                                for (k, v) in data.get(
+                                    "properties", {}
+                                ).items()
                             }
                         }
                     )
@@ -407,13 +420,17 @@ class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateVie
                                 f"Model {self.model} does not contain TYPES attribute. Skipping post_type."
                             )
                     else:
-                        kwargs.get("data").update({"post_type": self.model.TYPES.note})
+                        kwargs.get("data").update(
+                            {"post_type": self.model.TYPES.note}
+                        )
 
                     for k in url_keys:
                         if k in kwargs.get("data").keys():
                             post_type = POST_TYPES.get(k).get("name")
                             try:
-                                post_type = self.model.TYPES.__getattr__(post_type)
+                                post_type = self.model.TYPES.__getattr__(
+                                    post_type
+                                )
                             except:
                                 post_type = self.model.TYPE_CHOICES[post_type]
 
@@ -446,20 +463,26 @@ class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateVie
                         )
 
                     if "mp-syndicate-to" in kwargs.get("data").keys():
-                        syndication_targets = kwargs.get("data").pop("mp-syndicate-to")
+                        syndication_targets = kwargs.get("data").pop(
+                            "mp-syndicate-to"
+                        )
 
                         syndicate_to = SyndicationTarget.objects.filter(
                             uid__in=syndication_targets
                         )
 
-                        kwargs.get("data").update({"syndicate_to": syndicate_to})
+                        kwargs.get("data").update(
+                            {"syndicate_to": syndicate_to}
+                        )
 
                 # bookmark-of, reply-to, like-of need to be converted to
                 # the `url` key in kwargs
 
                 if "type" in data.keys():
                     entry_type = data.get("type").pop()
-                    kwargs.get("data", {}).update({"h": entry_type.replace("h-", "")})
+                    kwargs.get("data", {}).update(
+                        {"h": entry_type.replace("h-", "")}
+                    )
                 return kwargs
             except json.decoder.JSONDecodeError:
                 logger.debug("bad json")
@@ -486,7 +509,9 @@ class MicropubCreateView(MicropubMixin, JsonableResponseMixin, generic.CreateVie
             kwargs.get("data").update({"post_type": self.model.TYPES.note})
 
         if "post-status" in kwargs.get("data", {}).keys():
-            kwargs.get("data").update({"status": kwargs.get("data").get("post-status")})
+            kwargs.get("data").update(
+                {"status": kwargs.get("data").get("post-status")}
+            )
 
         return kwargs
 
@@ -655,7 +680,9 @@ class MicropubUndeleteView(MicropubDeleteView):
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-class MicropubView(IndieAuthMixin, JsonableResponseMixin, ModelFormMixin, generic.View):
+class MicropubView(
+    IndieAuthMixin, JsonableResponseMixin, ModelFormMixin, generic.View
+):
     # model = get_post_model()
     form_class = micropub_forms.AuthForm
     update_view = MicropubUpdateView
@@ -698,7 +725,9 @@ class MicropubView(IndieAuthMixin, JsonableResponseMixin, ModelFormMixin, generi
                 return JsonResponseBadRequest(
                     {
                         "error": "invalid_request",
-                        "error_description": {"url": ["This field is required."]},
+                        "error_description": {
+                            "url": ["This field is required."]
+                        },
                     }
                 )
 
@@ -759,7 +788,9 @@ class MediaEndpoint(generic.CreateView):
 
         resp = HttpResponse(status=201)
 
-        resp["Location"] = self.request.build_absolute_uri(self.object.file.url)
+        resp["Location"] = self.request.build_absolute_uri(
+            self.object.file.url
+        )
 
         return resp
 

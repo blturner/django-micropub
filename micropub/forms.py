@@ -8,8 +8,6 @@ except ImportError:
     from django.contrib.postgres.forms import JSONField
 
 
-from .models import Post
-
 from blog.models import Entry
 
 
@@ -54,33 +52,6 @@ class AuthForm(forms.Form):
     access_token = forms.CharField(required=False)
 
 
-class PostForm(forms.ModelForm):
-    status = forms.CharField(required=False)
-
-    class Meta:
-        model = Post
-        fields = [
-            "name",
-            "content",
-            "post_type",
-            "rsvp",
-            "url",
-            "status",
-            "tags",
-        ]
-
-    # def save(self, commit=True):
-    #     instance = super().save(commit=False)
-
-    #     import ipdb
-
-    #     ipdb.set_trace()
-
-    #     if commit:
-    #         instance.save()
-    #     return instance
-
-
 class DeleteForm(forms.Form):
     action = forms.CharField()
     url = forms.URLField()
@@ -91,14 +62,6 @@ class DeleteForm(forms.Form):
     #     import ipdb
 
     #     ipdb.set_trace()
-
-
-class FavoriteForm(PostForm):
-    class Meta(PostForm.Meta):
-        exclude = [
-            "name",
-            "rsvp",
-        ]
 
 
 class ReplyForm(forms.ModelForm):

@@ -1,30 +1,11 @@
 from django.contrib import admin
 
-from .models import Post, Media, SyndicationTarget
-
-
-class PostAdmin(admin.ModelAdmin):
-    list_display = [
-        "__str__",
-        "status",
-        "published_at",
-        "created",
-        "post_type",
-        "is_removed",
-    ]
-    list_filter = [
-        "post_type",
-        "status",
-        "is_removed",
-        "published_at",
-    ]
-    ordering = ("-published_at", "-created")
+from .models import Media, SyndicationTarget
 
 
 class SyndicationTargetAdmin(admin.ModelAdmin):
     list_display = ["__str__", "uid"]
 
 
-admin.site.register(Post, PostAdmin)
 admin.site.register(Media)
 admin.site.register(SyndicationTarget, SyndicationTargetAdmin)
