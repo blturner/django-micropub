@@ -3,10 +3,8 @@ from urllib.parse import urlparse
 from django.db import models
 from django.urls import resolve, reverse
 
-from micropub.models import MicropubModel
 
-
-class Post(MicropubModel, models.Model):
+class Post(models.Model):
     title = models.CharField(max_length=100)
     content = models.TextField()
     tags = models.CharField(max_length=255)
@@ -21,7 +19,7 @@ class Post(MicropubModel, models.Model):
         return post
 
 
-class AdvancedPost(MicropubModel, models.Model):
+class AdvancedPost(models.Model):
     title = models.CharField(max_length=100)
     slug = models.SlugField()
     content = models.TextField()

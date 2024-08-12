@@ -10,7 +10,6 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from tests.models import Post, AdvancedPost
-from micropub.models import Media
 
 
 class MicroPubUnauthorizedTestCase(TestCase):
