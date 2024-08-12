@@ -1,51 +1,10 @@
 from django import forms
 from django.core.exceptions import ValidationError
-from django.utils import timezone
 
 try:
     from django.forms import JSONField
 except ImportError:
     from django.contrib.postgres.forms import JSONField
-
-
-from blog.models import Entry
-
-
-class EntryForm(forms.ModelForm):
-    """
-    This form should be provided by the third party model.
-    Probably needs to be set in the settings config.
-    Handles the translation of indieweb terms to the django model.
-    Make this subclassable by consuming libraries?
-    """
-
-    name = forms.CharField()
-    slug = forms.CharField(required=False)
-    status = forms.CharField()
-
-    class Meta:
-        model = Entry
-        fields = [
-            "content",
-            "slug",
-        ]
-        # exclude = ["slug", "status", "status_changed", "title"]
-
-    def save(self, commit=True):
-        instance = super().save(commit=False)
-
-        title = self.cleaned_data["name"]
-        status = self.cleaned_data["status"]
-
-        instance.title = title
-        instance.published_date = timezone.now()
-
-        if status == "published":
-            instance.status = instance.STATUS.live
-
-        if commit:
-            instance.save()
-        return instance
 
 
 class AuthForm(forms.Form):
