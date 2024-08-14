@@ -29,7 +29,7 @@ from sentry_sdk import capture_message
 
 from .forms import DeleteForm
 from . import forms as micropub_forms
-from .models import Media
+from .models import Media, SyndicationTarget
 from .utils import get_post_model
 
 
@@ -255,9 +255,12 @@ class MicropubMixin(object):
 
     def post(self, request, *args, **kwargs):
         if not self.model:
-            properties = json.loads(request.body.decode("utf-8")).get(
-                "properties"
-            )
+            if request.content_type == "application/json":
+                properties = json.loads(request.body.decode("utf-8")).get(
+                    "properties"
+                )
+            else:
+                properties = request.POST
 
             try:
                 post_type = [
@@ -266,6 +269,8 @@ class MicropubMixin(object):
             except IndexError:
                 if set(["name", "content"]).issubset(properties.keys()):
                     post_type = "article"
+                elif "bookmark-of" in properties.keys():
+                    post_type = "bookmark"
                 else:
                     post_type = "note"
 
