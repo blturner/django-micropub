@@ -355,7 +355,9 @@ class MicropubCreateView(
                 try:
                     file = photo.split(settings.MEDIA_URL)[1]
                     media = Media.objects.get(file__exact=file)
-                    self.object.media.add(media)
+                    MediaItem.objects.create(
+                        content_object=self.object, media=media
+                    )
                 except (Media.DoesNotExist, IndexError):
                     self.object.delete()
                     raise SuspiciousOperation(
