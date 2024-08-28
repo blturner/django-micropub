@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Media, SyndicationTarget
+from .models import Media, MediaItem, SyndicationTarget
 
 
 class SyndicationTargetAdmin(admin.ModelAdmin):
@@ -8,4 +8,5 @@ class SyndicationTargetAdmin(admin.ModelAdmin):
 
 
 admin.site.register(Media)
+admin.site.register(MediaItem)
 admin.site.register(SyndicationTarget, SyndicationTargetAdmin)

@@ -29,7 +29,7 @@ from sentry_sdk import capture_message
 
 from .forms import DeleteForm
 from . import forms as micropub_forms
-from .models import Media, SyndicationTarget
+from .models import Media, MediaItem, SyndicationTarget
 from .utils import get_post_model
 
 
@@ -323,7 +323,10 @@ class MicropubCreateView(
         if len(photos) > 0:
             for file in photos:
                 media = Media.objects.create(file=file)
-                self.object.media.add(media)
+                MediaItem.objects.create(
+                    content_object=self.object, media=media
+                )
+                # self.object.media.add(media)
             self.object.save()
 
         pt_keys = [k for k in form.data.keys() if k in POST_TYPES.keys()]
