@@ -472,6 +472,9 @@ class MicropubCreateView(
                             "mp-syndicate-to"
                         )
 
+                        if not isinstance(syndication_targets, list):
+                            syndication_targets = [syndication_targets]
+
                         syndicate_to = SyndicationTarget.objects.filter(
                             uid__in=syndication_targets
                         )
