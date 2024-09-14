@@ -293,19 +293,6 @@ class MicropubMixin(object):
 
         return super().post(request, *args, **kwargs)
 
-    def get_form_class(self):
-        url_keys = ["like-of", "in-reply-to", "repost-of"]
-
-        if self.request.content_type == "application/json":
-            body = json.loads(self.request.body)
-            properties = body.get("properties", {})
-
-            if any(key in url_keys for key in properties.keys()):
-                # self.form_class = micropub_forms.FavoriteForm
-                return micropub_forms.FavoriteForm
-
-        return super().get_form_class()
-
 
 class MicropubCreateView(
     MicropubMixin, JsonableResponseMixin, generic.CreateView
