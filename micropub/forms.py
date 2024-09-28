@@ -15,23 +15,6 @@ class DeleteForm(forms.Form):
     action = forms.CharField()
     url = forms.URLField()
 
-    # def clean(self):
-    #     cleaned_data = super().clean()
-
-    #     import ipdb
-
-    #     ipdb.set_trace()
-
-
-class ReplyForm(forms.ModelForm):
-    content = forms.CharField()
-    url = forms.URLField()
-
-
-class RepostForm(forms.ModelForm):
-    content = forms.CharField(required=False)
-    url = forms.URLField()
-
 
 class UpdateForm(forms.ModelForm):
     h = forms.ChoiceField(required=False, choices=[("entry", "entry")])

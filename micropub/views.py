@@ -222,7 +222,7 @@ class SourceView(IndieAuthMixin, JSONResponseMixin, View):
         if not url:
             return HttpResponseBadRequest()
 
-        post = Post.from_url(url)
+        post = get_post_model().from_url(url)
         context = {"type": ["h-entry"], "properties": {}}
 
         if properties:
