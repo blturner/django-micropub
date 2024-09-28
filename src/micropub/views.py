@@ -23,10 +23,6 @@ from django.views.decorators.csrf import csrf_exempt
 from django.urls import reverse
 from django.utils.decorators import method_decorator
 
-import sentry_sdk
-
-from sentry_sdk import capture_message
-
 from .forms import DeleteForm
 from . import forms as micropub_forms
 from .models import Media, MediaItem, SyndicationTarget
@@ -365,7 +361,6 @@ class MicropubCreateView(
     def form_invalid(self, form):
         with sentry_sdk.push_scope() as scope:
             scope.set_extra("error_description", form.errors)
-            capture_message("failed to create post")
         return JsonResponse(
             {"error": "invalid_request", "error_description": form.errors},
             status=400,
