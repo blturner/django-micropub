@@ -359,8 +359,6 @@ class MicropubCreateView(
         return resp
 
     def form_invalid(self, form):
-        with sentry_sdk.push_scope() as scope:
-            scope.set_extra("error_description", form.errors)
         return JsonResponse(
             {"error": "invalid_request", "error_description": form.errors},
             status=400,
