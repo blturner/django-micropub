@@ -501,6 +501,20 @@ class MicropubCreateView(
         else:
             kwargs.get("data").update({"post_type": self.model.TYPES.note})
 
+        for k in url_keys:
+            if k in kwargs.get("data").keys():
+                post_type = (
+                    settings.MICROPUB.get("post_types").get(k).get("name")
+                )
+                url = kwargs.get("data").get(k)
+
+                kwargs.get("data").update(
+                    {
+                        "post_type": self.model.TYPES.__getattr__(post_type),
+                        "url": url,
+                    }
+                )
+
         if "post-status" in kwargs.get("data", {}).keys():
             kwargs.get("data").update(
                 {"status": kwargs.get("data").get("post-status")}
